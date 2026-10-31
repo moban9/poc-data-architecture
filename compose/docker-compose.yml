@@ -9,7 +9,7 @@ x-jvm-logging: &jvm-logging
 services:
   # ── Source: Loan Management System ─────────────────────────────────────────
   lms-postgres:
-    image: postgres:16
+    image: ${POSTGRES_IMAGE:-postgres:16}
     environment:
       POSTGRES_USER: ${LMS_DB_USER:-lms}
       POSTGRES_PASSWORD: ${LMS_DB_PASSWORD:-lms}
@@ -43,7 +43,7 @@ services:
 
   # ── Lakehouse: object storage + catalog ────────────────────────────────────
   minio:
-    image: minio/minio:latest
+    image: ${MINIO_IMAGE:-minio/minio:latest}
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
@@ -57,7 +57,7 @@ services:
       - minio_data:/data
 
   polaris-postgres:
-    image: postgres:16
+    image: ${POSTGRES_IMAGE:-postgres:16}
     environment:
       POSTGRES_USER: ${POLARIS_DB_USER:-polaris}
       POSTGRES_PASSWORD: ${POLARIS_DB_PASSWORD:-polaris}
@@ -70,7 +70,7 @@ services:
       - polaris_pg_data:/var/lib/postgresql/data
 
   polaris:
-    image: apache/polaris:latest
+    image: ${POLARIS_IMAGE:-apache/polaris:latest}
     environment:
       # TODO(Meridian): exact property/env names from the Polaris release config.
       polaris.realm-context.realms: default-realm
@@ -89,7 +89,7 @@ services:
 
   # ── Streaming: Kafka (KRaft) + Connect ─────────────────────────────────────
   kafka:
-    image: apache/kafka:3.8.1
+    image: ${KAFKA_IMAGE:-apache/kafka:3.8.1}
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
@@ -117,7 +117,7 @@ services:
       retries: 10
 
   connect:
-    image: debezium/connect:2.7
+    image: ${CONNECT_IMAGE:-debezium/connect:2.7}
     environment:
       BOOTSTRAP_SERVERS: kafka:9092
       GROUP_ID: lms-connect
@@ -144,7 +144,7 @@ services:
 
   # ── Compute / transform / serve ────────────────────────────────────────────
   trino:
-    image: trinodb/trino:latest
+    image: ${TRINO_IMAGE:-trinodb/trino:latest}
     environment:
       JAVA_TOOL_OPTIONS: "-Xmx1g"
     ports:
@@ -162,7 +162,7 @@ services:
       retries: 10
 
   dagster:
-    image: ghcr.io/dagster-io/dagster:latest
+    image: ${DAGSTER_IMAGE:-ghcr.io/dagster-io/dagster:latest}
     environment:
       DAGSTER_HOME: /opt/dagster/dagster_home
       DAGSTER_PG_PASSWORD: ${DAGSTER_PG_PASSWORD:-dagster}
@@ -181,7 +181,7 @@ services:
 
   # ── BI ─────────────────────────────────────────────────────────────────────
   metabase:
-    image: metabase/metabase:latest
+    image: ${METABASE_IMAGE:-metabase/metabase:latest}
     environment:
       MB_JETTY_PORT: 3000
       JAVA_TOOL_OPTIONS: "-Xmx384m"
@@ -196,7 +196,7 @@ services:
 
   # ── Monitoring ─────────────────────────────────────────────────────────────
   prometheus:
-    image: prom/prometheus:latest
+    image: ${PROMETHEUS_IMAGE:-prom/prometheus:latest}
     ports:
       - "9090:9090"
     mem_limit: 256m
@@ -208,7 +208,7 @@ services:
       - node-exporter
 
   grafana:
-    image: grafana/grafana:latest
+    image: ${GRAFANA_IMAGE:-grafana/grafana:latest}
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-grafana}
     ports:
@@ -221,7 +221,7 @@ services:
       - prometheus
 
   node-exporter:
-    image: prom/node-exporter:latest
+    image: ${NODE_EXPORTER_IMAGE:-prom/node-exporter:latest}
     ports:
       - "9100:9100"
     mem_limit: 128m
