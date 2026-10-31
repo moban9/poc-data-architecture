@@ -1,0 +1,244 @@
+# Full POC stack — pinned to 05 §9 component budget (8 vCPU / 16 GB / 100 GB, single node).
+# Placeholders marked "TODO(team)" are owned: LMS api/seed = Piston, connector configs = Cask,
+# dbt project + trino catalogs = Meridian, polaris props = Meridian, monitoring = Relay.
+name: lms-poc
+
+x-jvm-logging: &jvm-logging
+  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75 -Djava.util.logging.config.file=/dev/null"
+
+services:
+  # ── Source: Loan Management System ─────────────────────────────────────────
+  lms-postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${LMS_DB_USER:-lms}
+      POSTGRES_PASSWORD: ${LMS_DB_PASSWORD:-lms}
+      POSTGRES_DB: ${LMS_DB_NAME:-lms}
+    ports:
+      - "5432:5432"
+    command: >
+      postgres -c wal_level=logical -c max_replication_slots=4
+               -c max_wal_senders=4 -c shared_preload_libraries=pgoutput
+    mem_limit: 384m
+    cpus: 0.5
+    volumes:
+      - lms_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${LMS_DB_USER:-lms}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  lms-api:
+    # TODO(Piston): FastAPI service + deterministic seed generator (02 doc).
+    build: ../src/lms
+    environment:
+      DATABASE_URL: postgresql://${LMS_DB_USER:-lms}:${LMS_DB_PASSWORD:-lms}@lms-postgres:5432/${LMS_DB_NAME:-lms}
+    ports:
+      - "8000:8000"
+    depends_on:
+      - lms-postgres
+    mem_limit: 512m
+    cpus: 0.5
+
+  # ── Lakehouse: object storage + catalog ────────────────────────────────────
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    mem_limit: 512m
+    cpus: 0.5
+    volumes:
+      - minio_data:/data
+
+  polaris-postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POLARIS_DB_USER:-polaris}
+      POSTGRES_PASSWORD: ${POLARIS_DB_PASSWORD:-polaris}
+      POSTGRES_DB: ${POLARIS_DB_NAME:-polaris}
+    ports:
+      - "5433:5432"
+    mem_limit: 256m
+    cpus: 0.25
+    volumes:
+      - polaris_pg_data:/var/lib/postgresql/data
+
+  polaris:
+    image: apache/polaris:latest
+    environment:
+      # TODO(Meridian): exact property/env names from the Polaris release config.
+      polaris.realm-context.realms: default-realm
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://polaris-postgres:5432/${POLARIS_DB_NAME:-polaris}
+      QUARKUS_DATASOURCE_USERNAME: ${POLARIS_DB_USER:-polaris}
+      QUARKUS_DATASOURCE_PASSWORD: ${POLARIS_DB_PASSWORD:-polaris}
+      JAVA_TOOL_OPTIONS: "-Xmx384m"
+    ports:
+      - "8181:8181"
+    depends_on:
+      - polaris-postgres
+    mem_limit: 512m
+    cpus: 0.5
+    volumes:
+      - ./polaris:/etc/polaris:ro
+
+  # ── Streaming: Kafka (KRaft) + Connect ─────────────────────────────────────
+  kafka:
+    image: apache/kafka:3.8.1
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    ports:
+      - "9092:9092"
+    mem_limit: 1536m
+    cpus: 1.0
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  connect:
+    image: debezium/connect:2.7
+    environment:
+      BOOTSTRAP_SERVERS: kafka:9092
+      GROUP_ID: lms-connect
+      CONFIG_STORAGE_TOPIC: connect_configs
+      OFFSET_STORAGE_TOPIC: connect_offsets
+      STATUS_STORAGE_TOPIC: connect_status
+      CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_REST_ADVERTISED_HOST_NAME: connect
+      <<: *jvm-logging
+    ports:
+      - "8083:8083"
+    depends_on:
+      - kafka
+    mem_limit: 1536m
+    cpus: 1.0
+    volumes:
+      # TODO(Cask): mount the Iceberg sink connector JAR + the Debezium Postgres
+      # source + sink JSON configs here; register via the Connect REST API or a
+      # startup script (scripts/register-connectors.sh).
+      - ./connect-plugins:/kafka/connect/iceberg-sink
+      - ./connect-config:/kafka/config:ro
+
+  # ── Compute / transform / serve ────────────────────────────────────────────
+  trino:
+    image: trinodb/trino:latest
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx1g"
+    ports:
+      - "8080:8080"
+    mem_limit: 2048m
+    cpus: 1.5
+    volumes:
+      # TODO(Meridian): etc/catalog/iceberg.properties (Polaris REST catalog),
+      # etc/catalog/postgres.properties (LMS).
+      - ./trino/catalog:/etc/trino/catalog:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/v1/info >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  dagster:
+    image: ghcr.io/dagster-io/dagster:latest
+    environment:
+      DAGSTER_HOME: /opt/dagster/dagster_home
+      DAGSTER_PG_PASSWORD: ${DAGSTER_PG_PASSWORD:-dagster}
+    ports:
+      - "3000:3000"
+    mem_limit: 1024m
+    cpus: 1.0
+    volumes:
+      # TODO(Cask/Meridian): dagster workspace with PyIceberg batch EL assets +
+      # dbt (dbt-trino) job. dbt runs in-process here, not as a separate service.
+      - ./dagster:/opt/dagster
+    depends_on:
+      - trino
+      - minio
+      - polaris
+
+  # ── BI ─────────────────────────────────────────────────────────────────────
+  metabase:
+    image: metabase/metabase:latest
+    environment:
+      MB_JETTY_PORT: 3000
+      JAVA_TOOL_OPTIONS: "-Xmx384m"
+    ports:
+      - "8085:3000"
+    mem_limit: 512m
+    cpus: 0.5
+    volumes:
+      - metabase_data:/metabase-data
+    depends_on:
+      - trino
+
+  # ── Monitoring ─────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    mem_limit: 256m
+    cpus: 0.25
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      - node-exporter
+
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-grafana}
+    ports:
+      - "3001:3000"
+    mem_limit: 256m
+    cpus: 0.25
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    ports:
+      - "9100:9100"
+    mem_limit: 128m
+    cpus: 0.25
+    # TODO(Relay): add JMX exporters (Kafka, Connect, Trino, Polaris) as java
+    # agents via JAVA_TOOL_OPTIONS on each JVM, plus MinIO + Postgres exporters.
+    # Configs under monitoring/jmx/.
+
+networks:
+  default:
+    name: lms-poc
+
+volumes:
+  lms_pg_data:
+  polaris_pg_data:
+  minio_data:
+  kafka_data:
+  metabase_data:
+  prometheus_data:
+  grafana_data:

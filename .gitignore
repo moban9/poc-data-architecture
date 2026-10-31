@@ -1,0 +1,11 @@
+# Terraform state + local secrets
+.terraform/
+terraform.tfvars
+terraform.tfstate*
+*.tfstate.*
+
+# Compose secrets
+compose/.env
+
+# OS noise
+.DS_Store
