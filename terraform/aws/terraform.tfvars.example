@@ -1,0 +1,7 @@
+# Copy to terraform.tfvars and fill in.
+region          = "us-east-1"
+name            = "lms-poc"
+instance_type   = "m7i.2xlarge"     # 8 vCPU / 32 GB
+boot_disk_gb    = 100
+key_name        = "your-ec2-keypair"
+allowed_ssh_cidrs = ["203.0.113.0/24"]  # replace with your public IP /32

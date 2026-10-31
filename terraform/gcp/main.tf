@@ -42,7 +42,7 @@ resource "google_compute_instance" "poc" {
 
   # Installs Docker + Compose on first boot (idempotent); stack itself is
   # started by `make deploy` so the compose dir can be synced first.
-  metadata_startup_script = file("${path.module}/../scripts/bootstrap.sh")
+  metadata_startup_script = file("${path.module}/../../scripts/bootstrap.sh")
 
   tags = [var.name]
 

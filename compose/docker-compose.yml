@@ -155,11 +155,23 @@ services:
       # TODO(Meridian): etc/catalog/iceberg.properties (Polaris REST catalog),
       # etc/catalog/postgres.properties (LMS).
       - ./trino/catalog:/etc/trino/catalog:ro
+      - ./demo:/demo:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/v1/info >/dev/null || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 10
+
+  # Ad-hoc engine for the data-virtualization demo (profiles: demo).
+  # Run it:  docker compose run --rm duckdb
+  duckdb:
+    image: ${DUCKDB_IMAGE:-duckdb/duckdb:latest}
+    profiles: ["demo"]
+    volumes:
+      - ./demo:/demo
+    working_dir: /demo
+    mem_limit: 512m
+    cpus: 0.5
 
   dagster:
     image: ${DAGSTER_IMAGE:-ghcr.io/dagster-io/dagster:latest}

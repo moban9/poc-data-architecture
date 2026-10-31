@@ -1,0 +1,53 @@
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: "cloud provider"
+        required: true
+        default: "aws"
+        type: choice
+        options: [aws, gcp]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        dir: [terraform/gcp, terraform/aws]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - name: terraform fmt + validate
+        working-directory: ${{ matrix.dir }}
+        run: |
+          terraform fmt -check
+          terraform init -backend=false
+          terraform validate
+      - name: compose config lint
+        run: docker compose -f compose/docker-compose.yml config -q
+
+  deploy:
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.provider || 'aws' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - name: terraform apply
+        id: apply
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          cd terraform/${{ inputs.provider || 'aws' }}
+          terraform init
+          terraform apply -auto-approve
+          echo "IP=$(terraform output -raw instance_public_ip)" >> "$GITHUB_OUTPUT"
+    outputs:
+      ip: ${{ steps.apply.outputs.IP }}
