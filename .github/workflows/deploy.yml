@@ -8,9 +8,13 @@ on:
       provider:
         description: "cloud provider"
         required: true
-        default: "aws"
+        default: "gcp"
         type: choice
-        options: [aws, gcp]
+        options: [gcp, aws]
+
+permissions:
+  contents: read
+  id-token: write   # required for GCP Workload Identity Federation (OIDC)
 
 jobs:
   validate:
@@ -33,21 +37,43 @@ jobs:
   deploy:
     needs: validate
     runs-on: ubuntu-latest
-    environment: ${{ inputs.provider || 'aws' }}
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
-      - name: terraform apply
-        id: apply
+
+      # GCP — authenticate via Workload Identity Federation (no service-account key)
+      - id: gcp-auth
+        if: ${{ (inputs.provider || 'gcp') == 'gcp' }}
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/445642900277/locations/global/workloadIdentityPools/hermes-poc-pool/providers/hermes-oidc'
+          service_account: 'hermes-poc@project-955f419f-217d-449b-950.iam.gserviceaccount.com'
+
+      - name: terraform apply (GCP)
+        id: apply-gcp
+        if: ${{ (inputs.provider || 'gcp') == 'gcp' }}
+        working-directory: terraform/gcp
+        env:
+          TF_VAR_project_id: project-955f419f-217d-449b-950
+          TF_VAR_region: asia-southeast2
+          TF_VAR_zone: asia-southeast2-a
+        run: |
+          terraform init
+          terraform apply -auto-approve
+          echo "IP=$(terraform output -raw instance_public_ip)" >> "$GITHUB_OUTPUT"
+
+      - name: terraform apply (AWS)
+        id: apply-aws
+        if: ${{ (inputs.provider || 'gcp') == 'aws' }}
+        working-directory: terraform/aws
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: us-east-1
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
         run: |
-          cd terraform/${{ inputs.provider || 'aws' }}
           terraform init
           terraform apply -auto-approve
           echo "IP=$(terraform output -raw instance_public_ip)" >> "$GITHUB_OUTPUT"
+
     outputs:
-      ip: ${{ steps.apply.outputs.IP }}
+      ip: ${{ steps.apply-gcp.outputs.IP || steps.apply-aws.outputs.IP }}
