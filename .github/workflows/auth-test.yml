@@ -1,0 +1,22 @@
+name: auth-test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write   # required for GCP Workload Identity Federation (OIDC)
+
+jobs:
+  auth:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/445642900277/locations/global/workloadIdentityPools/hermes-poc-pool/providers/hermes-oidc'
+          service_account: 'hermes-poc@project-955f419f-217d-449b-950.iam.gserviceaccount.com'
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: verify identity (read-only, no deploy)
+        run: gcloud auth list --filter=status:ACTIVE --format='value(account)'
