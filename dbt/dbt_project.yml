@@ -1,0 +1,34 @@
+name: 'lms_poc'
+version: '1.0.0'
+config-version: 2
+
+# Profile name must match an entry in profiles.yml (see profiles.yml.example).
+profile: 'lms_poc'
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+# ── Models ────────────────────────────────────────────────────────────────
+# Custom schemas map to exact lakehouse schema names via the
+# generate_schema_name macro in macros/generate_schema_name.sql
+# (silver -> "silver", gold -> "gold", lakehouse -> "lakehouse").
+models:
+  lms_poc:
+    +materialized: table
+    silver:
+      +schema: silver
+    gold:
+      +schema: gold
+
+# ── Seeds ─────────────────────────────────────────────────────────────────
+seeds:
+  lms_poc:
+    +schema: bronze
+    +quote_columns: false

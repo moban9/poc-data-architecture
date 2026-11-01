@@ -1,0 +1,216 @@
+# Monitoring + incident-ticketing stack for the LMS POC.
+#
+# This is a SEPARATE compose project (`lms-monitoring`) from the main pipeline in
+# docker-compose.yml. It joins the main stack's shared `lms-poc` network so that:
+#   * Prometheus can scrape the pipeline services by name (minio, node-exporter,
+#     kafka/connect/trino/polaris JMX exporters, etc.), and
+#   * Dagster/dbt can push metrics to the pushgateway (dbt tests, quarantine count).
+#
+# Bring-up order: run the MAIN stack first (it creates the `lms-poc` network),
+# then this file. Secrets come from env — copy monitoring.env.example to
+# monitoring.env and run:
+#     docker compose --env-file monitoring.env -f monitoring.yml up -d
+name: lms-monitoring
+
+x-plane-db-env: &plane-db-env
+  PGHOST: plane-db
+  PGDATABASE: ${PLANE_DB_NAME:-plane}
+  POSTGRES_USER: ${PLANE_DB_USER:-plane}
+  POSTGRES_PASSWORD: ${PLANE_DB_PASSWORD:-plane}
+  POSTGRES_DB: ${PLANE_DB_NAME:-plane}
+  POSTGRES_PORT: "5432"
+
+x-plane-redis-env: &plane-redis-env
+  REDIS_HOST: plane-redis
+  REDIS_PORT: "6379"
+  REDIS_URL: "redis://plane-redis:6379/"
+  REDIS_SSL_CERT_REQS: required
+  REDIS_SSL_CA_CERTS: ""
+
+x-plane-minio-env: &plane-minio-env
+  MINIO_ROOT_USER: ${PLANE_MINIO_ACCESS_KEY:-plane}
+  MINIO_ROOT_PASSWORD: ${PLANE_MINIO_SECRET_KEY:-plane}
+
+x-plane-s3-env: &plane-s3-env
+  AWS_REGION: ""
+  AWS_ACCESS_KEY_ID: ${PLANE_MINIO_ACCESS_KEY:-plane}
+  AWS_SECRET_ACCESS_KEY: ${PLANE_MINIO_SECRET_KEY:-plane}
+  AWS_S3_ENDPOINT_URL: "http://plane-minio:9000"
+  AWS_S3_BUCKET_NAME: uploads
+
+x-plane-mq-env: &plane-mq-env
+  RABBITMQ_HOST: plane-mq
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_DEFAULT_USER: ${PLANE_MQ_USER:-plane}
+  RABBITMQ_DEFAULT_PASS: ${PLANE_MQ_PASSWORD:-plane}
+  RABBITMQ_DEFAULT_VHOST: plane
+  RABBITMQ_VHOST: plane
+
+x-plane-app-env: &plane-app-env
+  WEB_URL: "${PLANE_WEB_URL:-http://plane-web}"
+  DEBUG: "0"
+  USE_MINIO: "1"
+  GUNICORN_WORKERS: "1"
+  SECRET_KEY: ${PLANE_SECRET_KEY:-CHANGE_ME_plane_secret_key_at_least_50_chars_long_1234567890}
+  DATABASE_URL: "postgresql://${PLANE_DB_USER:-plane}:${PLANE_DB_PASSWORD:-plane}@plane-db:5432/${PLANE_DB_NAME:-plane}"
+  AMQP_URL: "amqp://${PLANE_MQ_USER:-plane}:${PLANE_MQ_PASSWORD:-plane}@plane-mq:5672/plane"
+  API_KEY_RATE_LIMIT: 60/minute
+  MINIO_ENDPOINT_SSL: "0"
+  NUM_PROXIES: "0"
+
+services:
+  # ── Metrics collection ─────────────────────────────────────────────────────
+  prometheus:
+    image: ${PROMETHEUS_IMAGE:-prom/prometheus:latest}
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+    ports: ["9090:9090"]
+    volumes:
+      - ../monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../monitoring/prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus_data:/prometheus
+    depends_on: [alertmanager, pushgateway]
+    restart: unless-stopped
+    networks: [lms-poc]
+
+  alertmanager:
+    image: ${ALERTMANAGER_IMAGE:-prom/alertmanager:latest}
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    ports: ["9093:9093"]
+    volumes:
+      - ../monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    restart: unless-stopped
+    networks: [lms-poc]
+
+  pushgateway:
+    image: ${PUSHGATEWAY_IMAGE:-prom/pushgateway:latest}
+    ports: ["9091:9091"]
+    restart: unless-stopped
+    networks: [lms-poc]
+
+  grafana:
+    image: ${GRAFANA_IMAGE:-grafana/grafana:latest}
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-grafana}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports: ["3000:3000"]
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ../monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on: [prometheus]
+    restart: unless-stopped
+    networks: [lms-poc]
+
+  # ── Alertmanager → Plane ticket bridge ──────────────────────────────────────
+  ticket-bridge:
+    image: ${TICKET_BRIDGE_IMAGE:-python:3.12-slim}
+    working_dir: /app
+    command: ["python", "/app/ticket-bridge.py"]
+    environment:
+      PLANE_API_URL: "${PLANE_API_URL:-http://plane:8000/api/v1}"
+      PLANE_API_KEY: ${PLANE_API_KEY:-}
+      PLANE_WORKSPACE: ${PLANE_WORKSPACE:-}
+      PLANE_PROJECT_ID: ${PLANE_PROJECT_ID:-}
+      PLANE_UI_URL: "${PLANE_UI_URL:-http://localhost:3010}"
+      BRIDGE_PORT: "8001"
+      BRIDGE_DEDUPE_TTL: ${BRIDGE_DEDUPE_TTL:-3600}
+      PYTHONUNBUFFERED: "1"
+    ports: ["8001:8001"]
+    volumes:
+      - ../monitoring/scripts/ticket-bridge.py:/app/ticket-bridge.py:ro
+    depends_on: [plane]
+    restart: unless-stopped
+    networks: [lms-poc]
+
+  # ── Plane (incident ticketing engine) ───────────────────────────────────────
+  # Trimmed self-host set: db + redis + mq + minio + migrator + api + worker +
+  # web. Omitted for the POC: space, admin, live, beat-worker and the reverse
+  # proxy (the proxy is what routes the web UI to the API; here the API is
+  # consumed directly by the ticket-bridge and incident-simulator, and the web
+  # UI is for admin setup only).
+  plane-db:
+    image: ${PLANE_DB_IMAGE:-postgres:15.7-alpine}
+    command: postgres -c 'max_connections=1000'
+    environment:
+      <<: [*plane-db-env]
+    volumes: ["plane_pg_data:/var/lib/postgresql/data"]
+    restart: unless-stopped
+    networks: [lms-poc]
+
+  plane-redis:
+    image: ${PLANE_REDIS_IMAGE:-valkey/valkey:7.2.11-alpine}
+    volumes: ["plane_redis_data:/data"]
+    restart: unless-stopped
+    networks: [lms-poc]
+
+  plane-mq:
+    image: ${PLANE_MQ_IMAGE:-rabbitmq:3.13.6-management-alpine}
+    environment:
+      <<: [*plane-mq-env]
+    volumes: ["plane_mq_data:/var/lib/rabbitmq"]
+    restart: unless-stopped
+    networks: [lms-poc]
+
+  plane-minio:
+    image: ${PLANE_MINIO_IMAGE:-minio/minio:latest}
+    command: server /export --console-address ":9090"
+    environment:
+      <<: [*plane-minio-env]
+    volumes: ["plane_minio_data:/export"]
+    restart: unless-stopped
+    networks: [lms-poc]
+
+  plane-migrator:
+    image: makeplane/plane-backend:${PLANE_APP_RELEASE:-stable}
+    command: ./bin/docker-entrypoint-migrator.sh
+    environment:
+      <<: [*plane-app-env, *plane-db-env, *plane-redis-env, *plane-minio-env, *plane-s3-env, *plane-mq-env]
+    depends_on: [plane-db, plane-redis, plane-mq]
+    restart: "on-failure"
+    networks: [lms-poc]
+
+  plane:
+    image: makeplane/plane-backend:${PLANE_APP_RELEASE:-stable}
+    command: ./bin/docker-entrypoint-api.sh
+    environment:
+      <<: [*plane-app-env, *plane-db-env, *plane-redis-env, *plane-minio-env, *plane-s3-env, *plane-mq-env]
+    ports: ["8010:8000"]
+    depends_on: [plane-db, plane-redis, plane-mq, plane-minio]
+    restart: unless-stopped
+    networks: [lms-poc]
+
+  plane-worker:
+    image: makeplane/plane-backend:${PLANE_APP_RELEASE:-stable}
+    command: ./bin/docker-entrypoint-worker.sh
+    environment:
+      <<: [*plane-app-env, *plane-db-env, *plane-redis-env, *plane-minio-env, *plane-s3-env, *plane-mq-env]
+    depends_on: [plane, plane-db, plane-redis, plane-mq, plane-minio]
+    restart: unless-stopped
+    networks: [lms-poc]
+
+  plane-web:
+    image: makeplane/plane-frontend:${PLANE_APP_RELEASE:-stable}
+    ports: ["3010:80"]
+    depends_on: [plane]
+    restart: unless-stopped
+    networks: [lms-poc]
+
+networks:
+  lms-poc:
+    external: true
+
+volumes:
+  prometheus_data:
+  alertmanager_data:
+  grafana_data:
+  plane_pg_data:
+  plane_redis_data:
+  plane_mq_data:
+  plane_minio_data:

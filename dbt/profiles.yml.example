@@ -1,0 +1,16 @@
+# Copy to ~/.dbt/profiles.yml and fill in the Trino/Polaris connection.
+# dbt-trino talks to Trino, which is wired to the Polaris Iceberg REST catalog
+# in compose/ (see compose/trino/etc/catalog/iceberg.properties).
+lms_poc:
+  target: dev
+  outputs:
+    dev:
+      type: trino
+      method: none            # POC posture — use jwt/ldap for anything real
+      host: localhost         # trino port mapping in compose (8080)
+      port: 8080
+      user: admin
+      http_scheme: http
+      catalog: iceberg        # TODO(Meridian): match catalog name in trino/etc/catalog/iceberg.properties
+      schema: bronze          # default target schema for seeds / unscoped models
+      threads: 1

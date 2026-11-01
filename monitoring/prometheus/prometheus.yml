@@ -1,0 +1,86 @@
+# Prometheus config for the LMS pipeline POC.
+#
+# Scrape targets follow the services in compose/docker-compose.yml (main stack,
+# shared `lms-poc` network) plus this monitoring project's own components.
+#
+# Exporter contract (owners, see README "Owned TODOs"):
+#   node-exporter  :9100   host metrics — already in the main stack.
+#   minio          :9000   native /minio/v2/metrics/cluster endpoint.
+#   kafka  :7071, connect :7072, trino :7073, polaris :7074
+#                          JMX exporters attached to each JVM via JAVA_TOOL_OPTIONS
+#                          (jmx_prometheus_javaagent). Configs live under
+#                          monitoring/jmx/ (Relay). Until those land, these jobs
+#                          report `up == 0`, which is expected.
+#   lms-postgres   :9187   postgres_exporter for the CDC source (Relay).
+#   lms            :8000   LMS API /metrics (requires the FastAPI app to expose
+#                          Prometheus metrics — Piston).
+#   pushgateway    :9091   Dagster/dbt push dbt_test_failures, dbt_run_success,
+#                          quarantine_rows_total after each run.
+#
+# Consumer lag (kafka_consumergroup_lag) is expected from a Kafka lag exporter
+# (e.g. kafka-lag-exporter or the Kafka JMX consumer-lag rules), and connector
+# status (kafka_connect_connector_status) from the Connect JMX exporter.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    env: poc
+    stack: lms
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: alertmanager
+    static_configs:
+      - targets: ["alertmanager:9093"]
+
+  # Dagster/dbt push dbt test results + quarantine counts here (honor pushed labels).
+  - job_name: pushgateway
+    honor_labels: true
+    static_configs:
+      - targets: ["pushgateway:9091"]
+
+  # ── Pipeline (main stack, shared `lms-poc` network) ────────────────────────
+  - job_name: node-exporter
+    static_configs:
+      - targets: ["node-exporter:9100"]
+
+  - job_name: minio
+    metrics_path: /minio/v2/metrics/cluster
+    static_configs:
+      - targets: ["minio:9000"]
+
+  - job_name: kafka
+    static_configs:
+      - targets: ["kafka:7071"]
+
+  - job_name: connect
+    static_configs:
+      - targets: ["connect:7072"]
+
+  - job_name: trino
+    static_configs:
+      - targets: ["trino:7073"]
+
+  - job_name: polaris
+    metrics_path: /q/metrics
+    static_configs:
+      - targets: ["polaris:7074"]
+
+  - job_name: lms-postgres
+    static_configs:
+      - targets: ["lms-postgres-exporter:9187"]
+
+  - job_name: lms
+    static_configs:
+      - targets: ["lms-api:8000"]

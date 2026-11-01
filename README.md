@@ -1,57 +1,74 @@
-# GCP POC — Automated Setup (IaC)
+# GCP POC — Automated Setup (IaC) + Live Demo
 
-Reproducible bring-up of the full data pipeline POC from
+Reproducible bring-up of the full data-pipeline POC from
 `Data Pipeline POC/05 - Data Architecture (Authoritative)`:
-one GCP VM → Docker → the complete stack, all as code.
+one GCP VM → Docker → the complete stack, all as code. Includes a **demo control
+panel** (pick a scenario, watch the pipeline react), **real-time Grafana metrics**,
+a **visual pipeline-status view**, and **automated incident ticketing** (Plane).
 
 ## Layout
 ```
-terraform/   GCP VM (n2-standard-8), boot disk, SSH firewall, Docker bootstrap
-compose/     docker-compose.yml — every stack component, heaps pinned to 05 §9
-scripts/     bootstrap.sh — idempotent Docker + Compose install (also cloud-init)
-Makefile     init / plan / apply / deploy / status / teardown
+terraform/    GCP VM (e2-standard-8), boot disk, SSH firewall, Docker bootstrap
+compose/      docker-compose.yml (main stack) + monitoring.yml (obs + ticketing)
+monitoring/   prometheus + alert rules, alertmanager, ticket-bridge, grafana dashboards
+demo/         control panel — FastAPI harness + static UI (animated pipeline view)
+dbt/          dbt project — models, tests (schema.yml), quarantine DDL, dirty-data seed
+scripts/      bootstrap.sh, incident-simulator.py
+Makefile      init / plan / apply / deploy / status / teardown
 ```
 
-## Prerequisites
-1. GCP project with billing (free-trial $300/90-day credit) active.
-2. A service-account JSON key with **Compute Admin + Service Usage Admin**.
-3. `terraform`, `docker`, and `rsync` on the machine you run this from.
+## Cost (1-day demo ≈ $7)
+`e2-standard-8` (8 vCPU/32 GB) $0.268/hr + 100 GB pd-balanced $4/mo. A 1-day run is
+~2–3% of the $300 free-trial credit. Trial caps Compute Engine at 8 cores concurrent
+(our VM is exactly 8); delete (not stop) after the run — disk bills while stopped.
 
 ## Bring-up (one node, ~5 min)
 ```bash
-export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
-
-cd terraform
-cp terraform.tfvars.example terraform.tfvars   # set project_id, tighten SSH CIDR
-terraform init
-terraform plan
-terraform apply -auto-approve                  # VM up; Docker installed on boot
-
-cd ..
-make deploy                                     # rsync repo → VM, docker compose up -d
-make status                                     # all services healthy
+cd terraform && cp terraform.tfvars.example terraform.tfvars   # set project_id, tighten SSH CIDR
+terraform init && terraform plan && terraform apply -auto-approve
+cd .. && make deploy && make status
 ```
 
-## What comes up (compose)
-LMS Postgres + LMS API · MinIO · Polaris (+ Postgres) · Kafka KRaft · Kafka
-Connect (Debezium + Iceberg sink) · Trino · Dagster (+ in-process dbt) ·
-Metabase · Prometheus · Grafana · node-exporter.
+## What comes up
+- **Main stack** (`compose/docker-compose.yml`): LMS Postgres + LMS API · MinIO ·
+  Polaris · Kafka KRaft · Kafka Connect (Debezium + Iceberg sink) · Trino ·
+  Dagster/dbt · Metabase.
+- **Monitoring + ticketing** (`compose/monitoring.yml`): Prometheus · Alertmanager ·
+  Grafana · ticket-bridge · **Plane** (open-source Jira-like) · Pushgateway.
 
-## Security notes (POC posture, tighten for anything longer than a day)
-- `allowed_ssh_cidrs` defaults to `0.0.0.0/0` — set it to your IP before apply.
-- All default passwords in `compose/.env.example` are placeholders — copy to
-  `compose/.env` and change every one before a real run.
-- The service-account key is not committed; `terraform.tfvars` is gitignored.
+## Demo control panel (`:8001`)
+FastAPI harness + a self-contained static page. Four scenarios, each runs against the
+real pipeline and streams per-hop results; the page shows an **animated SVG pipeline**
+(LMS → CDC → Bronze → Silver → Gold → BI) with live per-hop status colors.
+- **Inject dirty data** → bad rows trip dbt tests → quarantined (visible, not absorbed).
+- **Run healthy CDC flow** → per-hop latency → "queryable in Gold: YES".
+- **Simulate pipeline failure** → connector paused → alert → incident ticket auto-opened.
+- **Trigger incident ticket** → manual governance-loop demo → ticket id + URL.
 
-## Owned TODOs (in compose, by owner)
-| Owner | Work |
-|---|---|
-| Piston | `src/lms` FastAPI + deterministic seed (02) |
-| Cask | Debezium source + Iceberg sink connector JAR/configs; register-connectors.sh |
-| Meridian | trino catalogs, polaris properties, dbt project |
-| Relay | JMX exporters, Grafana dashboards, alert rules |
+## Monitoring & incident management
+- Grafana dashboard `pipeline.json` (auto-provisioned): a **Node Graph** of the
+  pipeline colored by live health, plus time-series for connector status, consumer lag,
+  quarantine count, and dbt test results.
+- Alert rules: `KafkaConnectConnectorFailed`, `KafkaConsumerLagTooHigh`,
+  `DbtTestFailures`, `QuarantineRowsPresent`, `ServiceDown`.
+- Alert path: Prometheus rule → Alertmanager webhook → `ticket-bridge` → Plane issue
+  (`[INCIDENT] <type>: <msg>`, priority urgent). `scripts/incident-simulator.py` emits
+  byte-identical tickets for offline demos.
+
+## dbt (tests + quarantine)
+`dbt/` is a runnable project: `schema.yml` (not_null, unique, relationships,
+positive_value, accepted_values), `macros/` (positive_value, valid_date,
+quarantine_insert), `models/quarantine.sql` (lakehouse.quarantine_lms DDL), and
+`seeds/dirty_data.csv` (5 rows, each tripping one rule). `dbt test --select dirty_data`
+yields exactly 5 failures.
+
+## Security notes (POC posture — tighten for anything longer than a day)
+- `allowed_ssh_cidrs` defaults to `0.0.0.0/0`; set it to your IP before apply.
+- All default passwords are placeholders — copy `compose/.env.example` → `.env` and
+  change every one before a real run.
+- Secrets are parameterized via env (`.env`, 0600); never committed.
 
 ## Teardown
 ```bash
-make teardown   # terraform destroy (deletes the VM + firewall)
+make teardown   # terraform destroy (deletes VM + disk + firewall)
 ```

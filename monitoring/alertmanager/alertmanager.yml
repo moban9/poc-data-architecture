@@ -1,0 +1,33 @@
+# Alertmanager config for the LMS pipeline POC.
+#
+# Every alert is routed to the local ticket-bridge (a small HTTP receiver that
+# POSTs incidents to Plane). Grouping/dedup happen here AND in the bridge, so
+# repeated notifications don't spam the issue board.
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: plane-ticket-bridge
+  group_by: ["alertname", "severity", "component"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - matchers: ['severity="critical"']
+      group_wait: 10s
+      repeat_interval: 1h
+
+receivers:
+  - name: plane-ticket-bridge
+    webhook_configs:
+      - url: http://ticket-bridge:8001/alerts
+        send_resolved: true
+        http_config:
+          follow_redirects: true
+
+inhibit_rules:
+  # If the host is down, suppress per-service down alerts (the node is the root
+  # cause). node-exporter is the host-level canary.
+  - source_matchers: ['alertname="ServiceDown"', 'job="node-exporter"']
+    target_matchers: ['alertname="ServiceDown"']
+    equal: ["instance"]

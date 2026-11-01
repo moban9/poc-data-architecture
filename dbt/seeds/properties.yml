@@ -1,0 +1,45 @@
+version: 2
+
+# Failure-scenario seed: 5 rows, each engineered to violate exactly one
+# data-quality rule on the loan model. `dbt seed` then
+# `dbt test --select dirty_data` should produce exactly 5 failures.
+#
+#   row 1  null id               -> not_null(id)
+#   row 2  negative amount       -> positive_value(amount)
+#   row 3  invalid date          -> valid_date(origination_date)
+#   row 4  unsupported currency  -> accepted_values(currency)
+#   row 5  orphan borrower_id    -> relationships(borrower_id -> dim_borrower.id)
+
+seeds:
+  - name: dirty_data
+    description: >
+      5 bad rows demonstrating the quarantine failure modes (null id, negative
+      amount, invalid date, unsupported currency, orphan borrower_id).
+    config:
+      column_types:
+        id: varchar
+        amount: decimal(18, 2)
+        currency: varchar
+        origination_date: varchar
+        borrower_id: varchar
+    columns:
+      - name: id
+        tests:
+          - not_null
+          - unique
+      - name: amount
+        tests:
+          - positive_value
+      - name: currency
+        tests:
+          - accepted_values:
+              values: ["USD", "EUR", "GBP", "JPY", "CAD", "AUD"]
+              quote: true
+      - name: origination_date
+        tests:
+          - valid_date
+      - name: borrower_id
+        tests:
+          - relationships:
+              to: ref('dim_borrower')
+              field: id

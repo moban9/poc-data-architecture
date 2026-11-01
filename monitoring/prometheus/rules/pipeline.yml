@@ -1,0 +1,122 @@
+# Recording + alerting rules for the LMS pipeline POC.
+#
+# Recording rules build a `pipeline_stage_health{stage=...}` gauge (0/1) and a
+# `pipeline_stage_edge{source=...,target=...}` constant set that the Grafana
+# Node Graph panel consumes for the live topology view.
+#
+# Stage → health source mapping:
+#   LMS      → up{lms-postgres}        (CDC source Postgres)
+#   Debezium → up{connect}             (Kafka Connect)
+#   Kafka    → up{kafka}
+#   Iceberg  → up{minio}               (object store)
+#   Bronze/Silver/Gold → dbt_run_success{layer=...}  (pushed by Dagster/dbt)
+#   BI       → up{trino}               (query engine behind Metabase)
+#
+# Metric contract for pushed metrics (Dagster/dbt → pushgateway):
+#   dbt_test_failures           gauge — number of failing tests in the last run
+#   dbt_tests_total             gauge — number of tests in the last run
+#   dbt_run_success{layer=...}  gauge — 1/0, last dbt run per medallion layer
+#   quarantine_rows_total       gauge — rows quarantined in the last load
+# Consumer lag: kafka_consumergroup_lag (lag exporter).
+# Connector status: kafka_connect_connector_status{status="RUNNING|FAILED|..."}.
+groups:
+  - name: pipeline_topology
+    interval: 30s
+    rules:
+      - record: pipeline_stage_health
+        expr: label_replace(up{job="lms-postgres"} or vector(0), "stage", "LMS", "", "")
+      - record: pipeline_stage_health
+        expr: label_replace(up{job="connect"} or vector(0), "stage", "Debezium", "", "")
+      - record: pipeline_stage_health
+        expr: label_replace(up{job="kafka"} or vector(0), "stage", "Kafka", "", "")
+      - record: pipeline_stage_health
+        expr: label_replace(up{job="minio"} or vector(0), "stage", "Iceberg", "", "")
+      - record: pipeline_stage_health
+        expr: label_replace(dbt_run_success{layer="bronze"} or vector(0), "stage", "Bronze", "", "")
+      - record: pipeline_stage_health
+        expr: label_replace(dbt_run_success{layer="silver"} or vector(0), "stage", "Silver", "", "")
+      - record: pipeline_stage_health
+        expr: label_replace(dbt_run_success{layer="gold"} or vector(0), "stage", "Gold", "", "")
+      - record: pipeline_stage_health
+        expr: label_replace(up{job="trino"} or vector(0), "stage", "BI", "", "")
+
+      - record: pipeline_stage_edge
+        expr: vector(1)
+        labels: { source: LMS, target: Debezium }
+      - record: pipeline_stage_edge
+        expr: vector(1)
+        labels: { source: Debezium, target: Kafka }
+      - record: pipeline_stage_edge
+        expr: vector(1)
+        labels: { source: Kafka, target: Iceberg }
+      - record: pipeline_stage_edge
+        expr: vector(1)
+        labels: { source: Iceberg, target: Bronze }
+      - record: pipeline_stage_edge
+        expr: vector(1)
+        labels: { source: Bronze, target: Silver }
+      - record: pipeline_stage_edge
+        expr: vector(1)
+        labels: { source: Silver, target: Gold }
+      - record: pipeline_stage_edge
+        expr: vector(1)
+        labels: { source: Gold, target: BI }
+
+  - name: pipeline_alerts
+    rules:
+      - alert: KafkaConnectConnectorFailed
+        expr: kafka_connect_connector_status{status="FAILED"} == 1
+        for: 1m
+        labels:
+          severity: critical
+          component: connect
+        annotations:
+          summary: "Kafka Connect connector FAILED: {{ $labels.connector }}"
+          description: >-
+            Connector {{ $labels.connector }} on {{ $labels.instance }} has status
+            FAILED. Check `curl -s http://connect:8083/connectors/{{ $labels.connector }}/status`.
+
+      - alert: KafkaConsumerLagTooHigh
+        expr: max by (group, topic) (kafka_consumergroup_lag) > 10000
+        for: 5m
+        labels:
+          severity: warning
+          component: kafka
+        annotations:
+          summary: "Consumer lag too high: {{ $labels.group }} / {{ $labels.topic }}"
+          description: >-
+            Consumer group {{ $labels.group }} is {{ $value }} messages behind on
+            topic {{ $labels.topic }} (threshold 10000). The sink may be falling behind.
+
+      - alert: DbtTestFailures
+        expr: dbt_test_failures > 0
+        for: 5m
+        labels:
+          severity: warning
+          component: dbt
+        annotations:
+          summary: "{{ $value }} dbt test(s) failing"
+          description: "dbt_test_failures = {{ $value }} — data-quality tests are failing."
+
+      - alert: QuarantineRowsPresent
+        expr: quarantine_rows_total > 0
+        for: 5m
+        labels:
+          severity: warning
+          component: dbt
+        annotations:
+          summary: "{{ $value }} row(s) quarantined"
+          description: "The Silver/Gold load quarantined {{ $value }} rows — investigate data quality."
+
+      - alert: ServiceDown
+        expr: >-
+          up{job=~"node-exporter|minio|kafka|connect|trino|polaris|lms-postgres|lms"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: infrastructure
+        annotations:
+          summary: "Service down: {{ $labels.job }} ({{ $labels.instance }})"
+          description: >-
+            Scrape target {{ $labels.instance }} (job {{ $labels.job }}) has been
+            down for 2 minutes.

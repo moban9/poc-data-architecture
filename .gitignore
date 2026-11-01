@@ -9,3 +9,6 @@ compose/.env
 
 # OS noise
 .DS_Store
+
+# Local demo virtualenv
+demo/.venv/

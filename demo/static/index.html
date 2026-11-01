@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>POC Pipeline Control Panel</title>
+<style>
+  :root {
+    --bg: #0b1220;
+    --panel: #111a2e;
+    --panel-2: #16203a;
+    --border: #22314f;
+    --text: #e2e8f0;
+    --muted: #8b9bb4;
+    --green: #34d399;
+    --amber: #fbbf24;
+    --red: #f87171;
+    --blue: #60a5fa;
+    --violet: #a78bfa;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: radial-gradient(1200px 600px at 20% -10%, #12203a 0%, var(--bg) 55%) fixed, var(--bg);
+    color: var(--text);
+    font: 15px/1.5 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    min-height: 100vh;
+    padding: 28px clamp(16px, 4vw, 64px) 64px;
+  }
+
+  header { max-width: 1200px; margin: 0 auto 22px; }
+  h1 { font-size: 24px; margin: 0 0 4px; letter-spacing: .3px; }
+  h1 .accent { color: var(--green); }
+  .sub { color: var(--muted); margin: 0 0 14px; font-size: 13px; }
+
+  .targets { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 999px; padding: 4px 11px; font-size: 12px; color: var(--muted);
+  }
+  .chip b { color: var(--text); font-weight: 600; }
+  .chip .led { width: 8px; height: 8px; border-radius: 50%; background: #334155; }
+  .chip.on  .led { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .chip.off .led { background: #f59e0b; box-shadow: 0 0 6px #f59e0b; }
+  .chip .mode { color: var(--muted); }
+
+  /* ── Scenario buttons ─────────────────────────────────────── */
+  .scenarios { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; max-width: 1200px; margin: 0 auto 26px; }
+  .scenario {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px 16px; color: var(--text); cursor: pointer; text-align: left;
+    transition: transform .08s ease, border-color .15s ease, box-shadow .15s ease;
+    font: inherit;
+  }
+  .scenario:hover:not(:disabled) { border-color: #37507a; transform: translateY(-1px); }
+  .scenario:active:not(:disabled) { transform: translateY(0); }
+  .scenario:disabled { opacity: .45; cursor: not-allowed; }
+  .scenario .glyph { font-size: 22px; line-height: 1; }
+  .scenario .name { font-weight: 600; margin-top: 6px; font-size: 15px; }
+  .scenario .desc { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+  /* ── Pipeline topology ────────────────────────────────────── */
+  .pipeline-wrap { max-width: 1200px; margin: 0 auto 26px; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 20px 12px; }
+  .pipeline { position: relative; }
+  .edges { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; }
+  .nodes { position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .node {
+    flex: 1 1 0; min-width: 0; text-align: center; background: var(--panel-2);
+    border: 1px solid var(--border); border-radius: 12px; padding: 14px 6px 12px;
+    transition: border-color .2s ease, box-shadow .2s ease, transform .15s ease;
+  }
+  .node .dot {
+    width: 14px; height: 14px; border-radius: 50%; margin: 0 auto 8px;
+    background: #334155; border: 2px solid #22314f;
+  }
+  .node .name { font-weight: 700; font-size: 14px; letter-spacing: .2px; }
+  .node .sub { color: var(--muted); font-size: 11px; margin-top: 2px; }
+  .node .metric { font-size: 11px; color: var(--muted); margin-top: 7px; min-height: 15px; }
+
+  .node.running { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber), 0 0 22px -6px var(--amber); }
+  .node.running .dot { background: var(--amber); animation: pulse 1s ease-in-out infinite; }
+  .node.success { border-color: var(--green); }
+  .node.success .dot { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .node.warning { border-color: var(--amber); }
+  .node.warning .dot { background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+  .node.failure { border-color: var(--red); }
+  .node.failure .dot { background: var(--red); box-shadow: 0 0 8px var(--red); }
+  .node.skipped { opacity: .45; }
+
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(251,191,36,.6); } 50% { box-shadow: 0 0 0 9px rgba(251,191,36,0); } }
+
+  /* Edges (SVG) */
+  .edge line { stroke: #2a3b5c; stroke-width: 2; stroke-dasharray: 5 5; }
+  .edge .packet { opacity: 0; }
+  .edge.active line   { stroke: var(--amber); stroke-dasharray: 7 4; animation: dash .35s linear infinite; }
+  .edge.active .packet   { opacity: 1; fill: var(--amber); }
+  .edge.success line { stroke: var(--green); stroke-dasharray: none; }
+  .edge.success .packet { opacity: 1; fill: var(--green); }
+  .edge.warning line { stroke: var(--amber); stroke-dasharray: none; }
+  .edge.warning .packet { opacity: 1; fill: var(--amber); }
+  .edge.failure line { stroke: var(--red); stroke-dasharray: none; }
+  .edge.failure .packet { opacity: 0; }
+  .edge.skipped line { stroke: #2a3b5c; stroke-dasharray: 4 5; }
+  @keyframes dash { to { stroke-dashoffset: -22; } }
+
+  /* ── Results ──────────────────────────────────────────────── */
+  .results { max-width: 1200px; margin: 0 auto; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; }
+  .summary {
+    font-weight: 600; font-size: 16px; padding: 10px 14px; border-radius: 9px; margin-bottom: 12px;
+    background: var(--panel-2); border: 1px solid var(--border); color: var(--muted);
+  }
+  .summary.running { color: var(--amber); border-color: var(--amber); }
+  .summary.success { color: var(--green); border-color: #1f6f50; }
+  .summary.warning { color: var(--amber); border-color: #7a5b14; }
+  .summary.failed, .summary.incident { color: var(--red); border-color: #7a2e2e; }
+
+  .log { list-style: none; margin: 0; padding: 0; }
+  .log li {
+    display: flex; align-items: baseline; gap: 10px; padding: 9px 12px;
+    border-left: 3px solid var(--border); margin-bottom: 6px; border-radius: 6px;
+    background: var(--panel-2); font-size: 13px;
+  }
+  .log li .hop { font-weight: 600; min-width: 58px; color: var(--text); }
+  .log li .msg { color: var(--muted); flex: 1; }
+  .log li .metric { font-size: 11px; color: var(--muted); background: #0b1220; border-radius: 5px; padding: 1px 7px; }
+  .log li .latency { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12px; min-width: 56px; text-align: right; }
+  .log li.running { border-left-color: var(--amber); animation: blink 1s ease-in-out infinite; }
+  .log li.success { border-left-color: var(--green); }
+  .log li.warning { border-left-color: var(--amber); }
+  .log li.failure { border-left-color: var(--red); }
+  .log li.skipped { opacity: .5; }
+  @keyframes blink { 50% { opacity: .55; } }
+
+  .ticket { margin-top: 14px; border: 1px solid var(--red); background: #1a1220; border-radius: 10px; padding: 12px 16px; }
+  .ticket h3 { margin: 0 0 6px; font-size: 14px; color: var(--red); }
+  .ticket p { margin: 2px 0; font-size: 13px; color: var(--muted); }
+  .ticket a { color: var(--blue); }
+
+  .legend { max-width: 1200px; margin: 14px auto 0; display: flex; gap: 18px; color: var(--muted); font-size: 12px; flex-wrap: wrap; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+  @media (max-width: 760px) {
+    .scenarios { grid-template-columns: repeat(2, 1fr); }
+    .node .sub { display: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>POC Pipeline <span class="accent">Control Panel</span></h1>
+  <p class="sub">PostgreSQL LMS → Debezium CDC → Kafka → Iceberg → dbt (Bronze/Silver/Gold) → Trino → Metabase</p>
+  <div class="targets" id="targets"></div>
+</header>
+
+<section class="scenarios" id="scenarios">
+  <button class="scenario" data-scenario="healthy">
+    <div class="glyph">✅</div><div class="name">Healthy</div><div class="desc">End-to-end success, all DQ checks green</div>
+  </button>
+  <button class="scenario" data-scenario="dirty">
+    <div class="glyph">⚠️</div><div class="name">Dirty Data</div><div class="desc">NULLs flow through → DQ warning at Gold</div>
+  </button>
+  <button class="scenario" data-scenario="failure">
+    <div class="glyph">❌</div><div class="name">Failure</div><div class="desc">Iceberg sink commit fails, pipeline halts</div>
+  </button>
+  <button class="scenario" data-scenario="incident">
+    <div class="glyph">🚨</div><div class="name">Incident</div><div class="desc">Gold SLO breach → auto-ticket in Plane</div>
+  </button>
+</section>
+
+<div class="pipeline-wrap">
+  <div class="pipeline" id="pipeline">
+    <svg class="edges" id="edges"></svg>
+    <div class="nodes" id="nodes">
+      <div class="node" data-node="lms"><div class="dot"></div><div class="name">LMS</div><div class="sub">Postgres · source</div><div class="metric"></div></div>
+      <div class="node" data-node="cdc"><div class="dot"></div><div class="name">CDC</div><div class="sub">Debezium</div><div class="metric"></div></div>
+      <div class="node" data-node="bronze"><div class="dot"></div><div class="name">Bronze</div><div class="sub">Iceberg · raw</div><div class="metric"></div></div>
+      <div class="node" data-node="silver"><div class="dot"></div><div class="name">Silver</div><div class="sub">dbt · clean</div><div class="metric"></div></div>
+      <div class="node" data-node="gold"><div class="dot"></div><div class="name">Gold</div><div class="sub">dbt · aggregate</div><div class="metric"></div></div>
+      <div class="node" data-node="bi"><div class="dot"></div><div class="name">BI</div><div class="sub">Trino → Metabase</div><div class="metric"></div></div>
+    </div>
+  </div>
+</div>
+
+<section class="results">
+  <div class="summary" id="summary">Idle — pick a scenario to run the pipeline.</div>
+  <ol class="log" id="log"></ol>
+  <div class="ticket" id="ticket" hidden></div>
+</section>
+
+<div class="legend">
+  <span><i style="background:var(--green)"></i> success</span>
+  <span><i style="background:var(--amber)"></i> running / warning</span>
+  <span><i style="background:var(--red)"></i> failure</span>
+  <span><i style="background:#334155"></i> pending / skipped</span>
+</div>
+
+<script>
+"use strict";
+const EDGE_IDS = ["lms-cdc", "cdc-bronze", "bronze-silver", "silver-gold", "gold-bi"];
+const NODE_IDS = ["lms", "cdc", "bronze", "silver", "gold", "bi"];
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+
+const edgesSvg = $("#edges");
+const nodes = $$(".node");
+const nodeEl = id => $("#nodes .node[data-node='" + id + "']");
+const summary = $("#summary");
+const log = $("#log");
+const ticketBox = $("#ticket");
+const buttons = $$(".scenario");
+
+let running = false;
+
+// ── Topology layout (draw edges + animated packets) ─────────────
+function layout() {
+  const pipeline = $("#pipeline");
+  const W = pipeline.clientWidth, H = pipeline.clientHeight;
+  edgesSvg.setAttribute("viewBox", "0 0 " + W + " " + H);
+  edgesSvg.innerHTML = "";
+  const nodesInOrder = NODE_IDS.map(nodeEl);
+  const y = nodesInOrder[0] ? nodesInOrder[0].offsetTop + nodesInOrder[0].offsetHeight / 2 : H / 2;
+
+  EDGE_IDS.forEach((eid, i) => {
+    const a = nodesInOrder[i], b = nodesInOrder[i + 1];
+    if (!a || !b) return;
+    const x1 = a.offsetLeft + a.offsetWidth / 2;
+    const x2 = b.offsetLeft + b.offsetWidth / 2;
+    const pad = 10; // keep packets off the card face a touch
+    const xA = x1 + pad, xB = x2 - pad;
+    const d = "M " + xA + " " + y + " L " + xB + " " + y;
+
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    g.setAttribute("class", "edge ready");
+    g.setAttribute("id", "edge-" + eid);
+    g.dataset.edge = eid;
+
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("x1", xA); line.setAttribute("y1", y);
+    line.setAttribute("x2", xB); line.setAttribute("y2", y);
+    g.appendChild(line);
+
+    [0, 1, 2].forEach(p => {
+      const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      c.setAttribute("r", 4.5);
+      c.setAttribute("class", "packet");
+      const anim = document.createElementNS("http://www.w3.org/2000/svg", "animateMotion");
+      anim.setAttribute("dur", "1.4s");
+      anim.setAttribute("begin", (p * 0.47) + "s");
+      anim.setAttribute("repeatCount", "indefinite");
+      anim.setAttribute("path", d);
+      c.appendChild(anim);
+      g.appendChild(c);
+    });
+    edgesSvg.appendChild(g);
+  });
+}
+window.addEventListener("resize", layout);
+
+function edgeEl(id) { return id ? $("#edge-" + id) : null; }
+
+// ── State updates ──────────────────────────────────────────────
+function resetPipeline() {
+  NODE_IDS.forEach(id => {
+    const el = nodeEl(id);
+    el.className = "node";
+    el.querySelector(".metric").textContent = "";
+  });
+  EDGE_IDS.forEach(id => { const g = edgeEl(id); if (g) g.setAttribute("class", "edge ready"); });
+}
+
+function setNode(id, state, metric) {
+  const el = nodeEl(id);
+  el.className = "node" + (state ? " " + state : "");
+  if (metric !== undefined && metric !== null) el.querySelector(".metric").textContent = metric;
+}
+function setEdge(id, state) { const g = edgeEl(id); if (g) g.setAttribute("class", "edge " + state); }
+
+function logLine(hop) {
+  const li = document.createElement("li");
+  li.className = "running";
+  li.dataset.hop = hop.id;
+  li.innerHTML =
+    '<span class="hop">' + hop.id + '</span>' +
+    '<span class="msg">' + (hop.label || "…") + '</span>' +
+    '<span class="metric"></span>' +
+    '<span class="latency"></span>';
+  log.prepend(li);
+  return li;
+}
+
+const STATUS_TEXT = { success: "✓", warning: "⚠", failure: "✗", skipped: "–" };
+
+function finishLogLine(hop) {
+  let li = log.querySelector('li[data-hop="' + hop.id + '"]');
+  if (!li) li = logLine(hop);   // skipped hops have no "running" line yet
+  li.className = hop.status;
+  li.querySelector(".hop").textContent = (STATUS_TEXT[hop.status] || "") + " " + hop.id;
+  li.querySelector(".msg").textContent = hop.message || "";
+  li.querySelector(".metric").textContent = hop.metric || "";
+  li.querySelector(".latency").textContent = hop.status === "skipped" ? "" : (hop.latency_ms + " ms");
+}
+
+function setSummary(state, text) {
+  summary.className = "summary" + (state ? " " + state : "");
+  summary.textContent = text;
+}
+
+function renderTargets(systems) {
+  const box = $("#targets");
+  if (!systems) return;
+  const entries = Object.values(systems);
+  if (!entries.length) return;
+  box.innerHTML = entries.map(s =>
+    '<span class="chip ' + (s.reachable ? "on" : "off") + '">' +
+      '<span class="led"></span><b>' + s.label + '</b>' +
+      '<span class="mode">' + (s.reachable ? "live" : "simulated") + '</span></span>'
+  ).join("");
+}
+
+function showTicket(t) {
+  if (!t) { ticketBox.hidden = true; return; }
+  ticketBox.hidden = false;
+  const link = t.url ? ' — <a href="' + t.url + '" target="_blank" rel="noopener">' + t.url + '</a>' : "";
+  ticketBox.innerHTML =
+    '<h3>🚨 Incident ticket ' + (t.simulated ? "(simulated)" : "") + '</h3>' +
+    '<p><b>' + (t.title || "") + '</b></p>' +
+    '<p>id: <code>' + t.id + '</code> · priority: ' + (t.priority || "urgent") + link + '</p>' +
+    '<p>' + (t.note || "") + '</p>';
+}
+
+// ── Scenario runner (SSE via fetch stream) ─────────────────────
+async function runScenario(name) {
+  if (running) return;
+  running = true;
+  buttons.forEach(b => b.disabled = true);
+  resetPipeline();
+  log.innerHTML = "";
+  ticketBox.hidden = true;
+  setSummary("running", "Running: " + name + " …");
+
+  try {
+    const res = await fetch("/scenario/" + name + "?stream=sse", { method: "POST" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    if (!res.body || !res.body.getReader) throw new Error("no stream");
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    let finished = false;
+
+    while (!finished) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf("\n\n")) >= 0) {
+        const chunk = buf.slice(0, idx);
+        buf = buf.slice(idx + 2);
+        handleSSE(chunk);
+        if (running === false) finished = true; // done event sets running=false
+      }
+    }
+  } catch (err) {
+    setSummary("failed", "Streaming failed (" + err.message + ") — falling back to JSON.");
+    await runJSON(name);
+  } finally {
+    running = false;
+    buttons.forEach(b => b.disabled = false);
+  }
+}
+
+function handleSSE(chunk) {
+  let event = "message", data = "";
+  chunk.split("\n").forEach(line => {
+    if (line.startsWith("event:")) event = line.slice(6).trim();
+    else if (line.startsWith("data:")) data += line.slice(5).trim();
+  });
+  if (!data) return;
+  let payload;
+  try { payload = JSON.parse(data); } catch { return; }
+
+  switch (event) {
+    case "start":
+      renderTargets(payload.systems);
+      break;
+    case "hop_running":
+      setNode(payload.node, "running");
+      setEdge(payload.edge, "active");
+      logLine({ id: payload.id, label: payload.label });
+      break;
+    case "hop_done":
+      setNode(payload.node, payload.status, payload.metric);
+      if (payload.status === "failure") setEdge(payload.edge, "failure");
+      else if (payload.status === "skipped") setEdge(payload.edge, "skipped");
+      else setEdge(payload.edge, payload.status);
+      finishLogLine(payload);
+      break;
+    case "ticket":
+      showTicket(payload);
+      break;
+    case "done":
+      running = false;
+      const t = {
+        success: ["success", "✓ Pipeline healthy — all hops green in " + payload.duration_ms + " ms"],
+        warning: ["warning", "⚠ Pipeline completed with data-quality warnings in " + payload.duration_ms + " ms"],
+        failed:  ["failed",  "✗ Pipeline failed in " + payload.duration_ms + " ms"],
+        incident:["incident", "🚨 Incident raised — ticket opened in " + payload.duration_ms + " ms"],
+      }[payload.status] || ["success", "done"];
+      setSummary(t[0], t[1]);
+      renderTargets(payload.systems);
+      break;
+  }
+}
+
+// JSON fallback: apply final hop states quickly, in order.
+async function runJSON(name) {
+  const res = await fetch("/scenario/" + name, { method: "POST" });
+  if (!res.ok) { setSummary("failed", "Scenario failed: HTTP " + res.status); return; }
+  const data = await res.json();
+  renderTargets(data.systems);
+  resetPipeline();
+  log.innerHTML = "";
+  const t = {
+    success: ["success", "✓ Pipeline healthy — all hops green"],
+    warning: ["warning", "⚠ Pipeline completed with DQ warnings"],
+    failed:  ["failed",  "✗ Pipeline failed"],
+    incident:["incident", "🚨 Incident raised — ticket opened"],
+  }[data.status] || ["success", "done"];
+  for (const hop of data.hops) {
+    setNode(hop.node, hop.status, hop.metric);
+    setEdge(hop.edge, hop.status === "failure" ? "failure" : hop.status);
+    logLine({ id: hop.id, label: hop.label });
+    finishLogLine(hop);
+    await new Promise(r => setTimeout(r, 60));
+  }
+  if (data.ticket) showTicket(data.ticket);
+  setSummary(t[0], t[1]);
+}
+
+buttons.forEach(b => b.addEventListener("click", () => runScenario(b.dataset.scenario)));
+
+layout();
+renderTargets(null);
+</script>
+</body>
+</html>

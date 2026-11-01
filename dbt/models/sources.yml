@@ -1,0 +1,21 @@
+version: 2
+
+# ── Bronze sources ────────────────────────────────────────────────────────
+# Raw CDC append-only streams written by the Debezium -> Iceberg sink into the
+# `bronze` schema of the Polaris catalog. Silver models select from these.
+
+sources:
+  - name: bronze
+    description: "Bronze layer — raw CDC append-only streams (Debezium -> Iceberg sink)."
+    schema: bronze
+    tables:
+      - name: loan
+        description: "LMS loans. Columns: id, amount, currency, origination_date, borrower_id."
+      - name: loan_event
+        description: >
+          LMS loan events. Columns: id, loan_id, event_type, occurred_at
+          (assumed — confirm with Cask, connector owner).
+      - name: borrower
+        description: >
+          LMS borrowers backing dim_borrower.
+          TODO(Meridian): confirm the bronze table name + columns with Cask.

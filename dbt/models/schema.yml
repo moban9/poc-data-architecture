@@ -1,0 +1,73 @@
+version: 2
+
+# ── Silver data-quality rules (the POC test suite) ────────────────────────
+# Built-in tests used: not_null, unique, relationships, accepted_values.
+# Custom generic tests used: positive_value (macros/positive_value.sql).
+# Rows that fail these land in lakehouse.quarantine_lms (see models/quarantine.sql).
+
+models:
+  - name: loan
+    description: >
+      Silver staging of the LMS `loan` table (from the Bronze CDC append-only
+      stream). Enforced by the data-quality rules below.
+    columns:
+      - name: id
+        description: "Loan identifier (primary key)."
+        tests:
+          - not_null
+          - unique
+      - name: amount
+        description: "Loan principal amount. Must be strictly positive (> 0)."
+        tests:
+          - positive_value
+      - name: currency
+        description: "ISO 4217 currency code."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["USD", "EUR", "GBP", "JPY", "CAD", "AUD"]
+              quote: true
+      - name: origination_date
+        description: "Date the loan was originated (YYYY-MM-DD)."
+        tests:
+          - not_null
+      - name: borrower_id
+        description: "Foreign key to dim_borrower."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_borrower')
+              field: id
+
+  - name: loan_event
+    description: "Silver staging of the LMS `loan_event` CDC stream."
+    columns:
+      - name: id
+        description: "Event identifier (primary key)."
+        tests:
+          - not_null
+          - unique
+      - name: loan_id
+        description: "Foreign key to loan."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('loan')
+              field: id
+      - name: event_type
+        description: "Event type code."
+        tests:
+          - not_null
+      - name: occurred_at
+        description: "Event timestamp."
+        tests:
+          - not_null
+
+  - name: dim_borrower
+    description: "Borrower dimension (one row per borrower)."
+    columns:
+      - name: id
+        description: "Borrower identifier (primary key)."
+        tests:
+          - not_null
+          - unique
