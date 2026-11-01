@@ -21,8 +21,8 @@ variable "zone" {
 
 variable "machine_type" {
   type        = string
-  default     = "n2-standard-8" # 8 vCPU / 32 GB (covered by $300 credit)
-  description = "n2-standard-8 (stable) or e2-standard-8 (shared-core, cheapest)"
+  default     = "e2-standard-8" # 8 vCPU / 32 GB — cheapest 8-core, wide availability (POC-minimized)
+  description = "e2-standard-8 (8 vCPU/32GB) or e2-standard-4 (4 vCPU/16GB — tight for the full stack)"
 }
 
 variable "boot_disk_gb" {
