@@ -40,4 +40,4 @@ http:
     plane-web:
       loadBalancer:
         servers:
-          - url: http://plane-web:80
+          - url: http://plane-web:3000
