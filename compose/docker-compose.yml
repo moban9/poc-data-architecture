@@ -9,6 +9,7 @@ x-jvm-logging: &jvm-logging
 services:
   # ── Source: Loan Management System ─────────────────────────────────────────
   lms-postgres:
+    restart: unless-stopped
     image: ${POSTGRES_IMAGE:-postgres:16}
     environment:
       POSTGRES_USER: ${LMS_DB_USER:-lms}
@@ -29,8 +30,8 @@ services:
       timeout: 5s
       retries: 10
 
-    restart: unless-stopped
   lms-api:
+    restart: unless-stopped
     # TODO(Piston): FastAPI service + deterministic seed generator (02 doc).
     build: ../src/lms
     environment:
@@ -44,8 +45,8 @@ services:
 
   # Demo control panel (FastAPI) — drives the pipeline scenarios. Served by the
   # Traefik edge layer at demo.<DOMAIN>; not published to the host.
-    restart: unless-stopped
   demo:
+    restart: unless-stopped
     build: ../demo
     environment:
       # Point at the real stack by service name; unreachable → simulated.
@@ -64,8 +65,8 @@ services:
     cpus: 0.25
 
   # ── Lakehouse: object storage + catalog ────────────────────────────────────
-    restart: unless-stopped
   minio:
+    restart: unless-stopped
     image: ${MINIO_IMAGE:-adobe/s3mock:latest}
     command: ["--http.port=9000"]
     environment:
@@ -78,8 +79,8 @@ services:
     volumes:
     - minio_data:/s3mockroot
 
-    restart: unless-stopped
   polaris-postgres:
+    restart: unless-stopped
     image: ${POSTGRES_IMAGE:-postgres:16}
     environment:
       POSTGRES_USER: ${POLARIS_DB_USER:-polaris}
@@ -92,8 +93,8 @@ services:
     volumes:
     - polaris_pg_data:/var/lib/postgresql/data
 
-    restart: unless-stopped
   polaris:
+    restart: unless-stopped
     image: ${POLARIS_IMAGE:-apache/polaris:latest}
     environment:
       # Realm + bootstrap root principal (format: <realm>,<client_id>,<client_secret>).
@@ -113,7 +114,6 @@ services:
 
   # One-shot: create the Polaris `lakehouse` catalog (Iceberg REST). See
   # polaris/init-lakehouse.sh.
-    restart: unless-stopped
   polaris-setup:
     image: ${POLARIS_SETUP_IMAGE:-alpine/curl:latest}
     entrypoint: ["/bin/sh", "-c"]
@@ -143,6 +143,7 @@ services:
 
   # ── Streaming: Kafka (KRaft) + Connect ─────────────────────────────────────
   kafka:
+    restart: unless-stopped
     image: ${KAFKA_IMAGE:-apache/kafka:3.8.1}
     environment:
       KAFKA_NODE_ID: 1
@@ -170,8 +171,8 @@ services:
       timeout: 10s
       retries: 10
 
-    restart: unless-stopped
   connect:
+    restart: unless-stopped
     image: ${CONNECT_IMAGE:-debezium/connect:2.7.3.Final}
     environment:
       BOOTSTRAP_SERVERS: kafka:9092
@@ -240,8 +241,8 @@ services:
     restart: "no"
 
   # ── Compute / transform / serve ────────────────────────────────────────────
-    restart: unless-stopped
   trino:
+    restart: unless-stopped
     image: ${TRINO_IMAGE:-trinodb/trino:latest}
     environment:
       JAVA_TOOL_OPTIONS: "-Xmx1g"
@@ -280,8 +281,8 @@ services:
 
   # Ad-hoc engine for the data-virtualization demo (profiles: demo).
   # Run it:  docker compose run --rm duckdb
-    restart: unless-stopped
   duckdb:
+    restart: unless-stopped
     image: ${DUCKDB_IMAGE:-duckdb/duckdb:latest}
     profiles: ["demo"]
     volumes:
@@ -291,8 +292,8 @@ services:
     cpus: 0.5
 
   # ── BI ─────────────────────────────────────────────────────────────────────
-    restart: unless-stopped
   metabase:
+    restart: unless-stopped
     image: ${METABASE_IMAGE:-metabase/metabase:latest}
     environment:
       MB_JETTY_PORT: 3000
@@ -307,8 +308,8 @@ services:
     - trino
 
   # ── Monitoring ─────────────────────────────────────────────────────────────
-    restart: unless-stopped
   node-exporter:
+    restart: unless-stopped
     image: ${NODE_EXPORTER_IMAGE:-prom/node-exporter:latest}
     ports:
     - "9100:9100"
@@ -318,19 +319,29 @@ services:
     # agents via JAVA_TOOL_OPTIONS on each JVM, plus MinIO + Postgres exporters.
     # Configs under monitoring/jmx/.
 
-    restart: unless-stopped
 networks:
   default:
+    restart: unless-stopped
     name: lms-poc
 
 volumes:
   lms_pg_data:
+    restart: unless-stopped
   polaris_pg_data:
+    restart: unless-stopped
   minio_data:
+    restart: unless-stopped
   kafka_data:
+    restart: unless-stopped
   connect_config:
+    restart: unless-stopped
   connect_data:
+    restart: unless-stopped
   connect_logs:
+    restart: unless-stopped
   metabase_data:
+    restart: unless-stopped
   prometheus_data:
+    restart: unless-stopped
   grafana_data:
+    restart: unless-stopped
