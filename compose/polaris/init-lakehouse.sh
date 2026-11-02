@@ -41,6 +41,13 @@ done
 [ -n "$TOKEN" ] && [ "$TOKEN" != "null" ] || { echo "❌ could not obtain access token" >&2; exit 1; }
 echo "✅ token obtained"
 
+echo "→ checking for existing catalog '${CATALOG}'..."
+EXISTING=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer ${TOKEN}" -H "Polaris-Realm: ${REALM}" "${POLARIS_HOST}/api/management/v1/catalogs/${CATALOG}")
+if [ "$EXISTING" = "200" ]; then
+  echo "✅ catalog '${CATALOG}' already exists — skipping"
+  exit 0
+fi
+
 echo "→ creating catalog '${CATALOG}' (S3 → ${MINIO_ENDPOINT}, base s3://${BUCKET})..."
 PAYLOAD=$(jq -n \
   --arg name "$CATALOG" \
