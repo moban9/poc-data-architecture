@@ -241,10 +241,10 @@ services:
     image: ${METABASE_IMAGE:-metabase/metabase:latest}
     environment:
       MB_JETTY_PORT: 3000
-      JAVA_TOOL_OPTIONS: "-Xmx384m"
+      JAVA_TOOL_OPTIONS: "-Xmx640m"
     ports:
       - "8085:3000"
-    mem_limit: 512m
+    mem_limit: 1g
     cpus: 0.5
     volumes:
       - metabase_data:/metabase-data
