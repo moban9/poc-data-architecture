@@ -20,6 +20,19 @@ MINIO_REGION="${MINIO_REGION:-us-east-1}"
 MINIO_ACCESS_KEY="${MINIO_ACCESS_KEY:-minioadmin}"
 MINIO_SECRET_KEY="${MINIO_SECRET_KEY:-CHANGE_ME_minio}"
 
+# s3mock 3.x ignores the `initialBuckets` env var (that was a 2.x feature), so the
+# bucket must be created via the S3 API. This is idempotent and cheap.
+echo "→ ensuring MinIO bucket '${BUCKET}' exists (${MINIO_ENDPOINT})..."
+i=0
+BUCKET_CODE="000"
+while [ "$BUCKET_CODE" != "200" ] && [ "$i" -lt 15 ]; do
+  BUCKET_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X PUT "${MINIO_ENDPOINT}/${BUCKET}" 2>/dev/null || true)
+  [ "$BUCKET_CODE" = "200" ] && break
+  i=$((i + 1))
+  sleep 2
+done
+echo "  bucket '${BUCKET}' → HTTP ${BUCKET_CODE}"
+
 echo "→ obtaining root access token (realm=${REALM})..."
 TOKEN=""
 i=0
