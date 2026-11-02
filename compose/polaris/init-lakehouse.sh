@@ -69,7 +69,7 @@ PAYLOAD=$(jq -n \
          pathStyleAccess: true,
          region: $region,
          accessKeyId: $ak,
-         secretAccessKey: $sk
+         secretAccessKey: $sk,
          stsUnavailable: true
        }
      }
@@ -84,3 +84,14 @@ RESPONSE=$(curl --fail-with-body -sS -X POST "${POLARIS_HOST}/api/management/v1/
 
 echo "✅ catalog '${CATALOG}' created"
 printf '%s' "$RESPONSE" | jq .
+
+echo "→ granting table privileges to catalog_admin role (so sink + Trino can read/write)..."
+for PRIV in TABLE_READ_DATA TABLE_WRITE_DATA TABLE_SET_STATISTICS; do
+  GRANT_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X PUT \
+    "${POLARIS_HOST}/api/management/v1/catalogs/${CATALOG}/catalog-roles/catalog_admin/grants" \
+    -H "Authorization: Bearer ${TOKEN}" \
+    -H "Polaris-Realm: ${REALM}" \
+    -H "Content-Type: application/json" \
+    -d "{\"type\":\"catalog\",\"privilege\":\"${PRIV}\"}")
+  echo "  ${PRIV} → HTTP ${GRANT_CODE}"
+done
