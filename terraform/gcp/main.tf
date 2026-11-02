@@ -62,12 +62,19 @@ resource "google_compute_instance" "poc" {
 
   network_interface {
     subnetwork = module.network.private_subnet_self_link
-    # No access_config block -> no public IP.
+    access_config {
+      # Ephemeral public IP — used ONLY for the deploy SSH step (firewall-restricted).
+      # App traffic still flows through the LB; this IP is not the app endpoint.
+    }
   }
 
   # Installs Docker + Compose on first boot (idempotent); the stack itself is
   # started by `make deploy` so the compose dir can be synced first.
   metadata_startup_script = file("${path.module}/../../scripts/bootstrap.sh")
+
+  metadata = {
+    ssh-keys = "ubuntu:ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIER1MBVNAk8entsOyKJwFHYr/QIBIi90F8gLhM+eIYo4 poc-deploy"
+  }
 
   tags = [var.app_tag]
 
@@ -79,6 +86,11 @@ resource "google_compute_instance" "poc" {
 output "load_balancer_ip" {
   description = "External HTTPS load balancer IP — point the cert domain's A record here"
   value       = module.network.lb_ip_address
+}
+
+output "instance_public_ip" {
+  description = "Ephemeral public IP of the app VM (deploy SSH only; firewall-restricted)"
+  value       = google_compute_instance.poc.network_interface[0].access_config[0].nat_ip
 }
 
 output "instance_private_ip" {

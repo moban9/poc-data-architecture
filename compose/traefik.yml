@@ -1,0 +1,33 @@
+# Edge layer — Traefik reverse proxy with FILE-BASED routing (no docker provider).
+#
+# The GCP LB terminates TLS on :443 (managed cert for grafana/demo/bi/plane
+# .onendo.cloud) and forwards plain HTTP to this service on :80. Traefik routes
+# by Host header to the backend services on the shared `lms-poc` network.
+#
+# Static (install) config: ./traefik/traefik.yml
+# Routing (dynamic) config:  ./traefik/dynamic.yml   (loaded by the file provider)
+#
+# Runs as its own compose project (`lms-edge`) and joins the shared `lms-poc`
+# network, the same pattern as monitoring.yml. Bring it up AFTER the main stack
+# (which creates the network):
+#     docker compose -f traefik.yml up -d
+name: lms-edge
+
+services:
+  traefik:
+    image: ${TRAEFIK_IMAGE:-traefik:v3.2}
+    ports:
+      - "80:80"
+    volumes:
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+    environment:
+      # Base domain used by the Host rules in dynamic.yml (via Go templating).
+      DOMAIN: ${DOMAIN:-onendo.cloud}
+    networks:
+      - lms-poc
+    restart: unless-stopped
+
+networks:
+  lms-poc:
+    external: true

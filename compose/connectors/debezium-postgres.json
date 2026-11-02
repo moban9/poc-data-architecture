@@ -1,0 +1,21 @@
+{
+  "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+  "tasks.max": "1",
+  "plugin.name": "pgoutput",
+  "database.hostname": "${LMS_DB_HOST}",
+  "database.port": "${LMS_DB_PORT}",
+  "database.user": "${LMS_DB_USER}",
+  "database.password": "${LMS_DB_PASSWORD}",
+  "database.dbname": "${LMS_DB_NAME}",
+  "topic.prefix": "${LMS_TOPIC_PREFIX}",
+  "table.include.list": "${DBZ_TABLE_INCLUDE_LIST}",
+  "slot.name": "${DBZ_SLOT_NAME}",
+  "publication.name": "${DBZ_PUBLICATION_NAME}",
+  "publication.autocreate.mode": "filtered",
+  "snapshot.mode": "initial",
+  "heartbeat.interval.ms": "10000",
+  "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+  "key.converter.schemas.enable": "false",
+  "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+  "value.converter.schemas.enable": "false"
+}

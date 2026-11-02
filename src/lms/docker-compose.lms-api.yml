@@ -1,0 +1,26 @@
+# lms-api service snippet — drop the block below under `services:` of the main
+# stack (compose/docker-compose.yml, which already declares `lms-api` with
+# `build: ../src/lms`). This is the canonical, health-aware definition.
+#
+# DATABASE_URL is injected; the user/db defaults match lms-postgres in
+# compose/docker-compose.yml.
+
+lms-api:
+  build: ../src/lms
+  image: lms-api:local
+  environment:
+    DATABASE_URL: postgresql://${LMS_DB_USER:-lms}:${LMS_DB_PASSWORD:-lms}@lms-postgres:5432/${LMS_DB_NAME:-lms}
+  ports:
+    - "8000:8000"
+  depends_on:
+    lms-postgres:
+      condition: service_healthy
+  restart: unless-stopped
+  mem_limit: 512m
+  cpus: 0.5
+  healthcheck:
+    test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health', timeout=3).status == 200 else 1)"]
+    interval: 15s
+    timeout: 5s
+    retries: 10
+    start_period: 10s

@@ -17,8 +17,9 @@ Endpoints
   GET  /                        → static/index.html (the control panel UI)
   GET  /static/{path}           → static assets
   GET  /health                  → liveness probe
-  POST /scenario/{name}         → run a scenario, return per-hop results (JSON)
+  POST /scenario/{name}[?count=N&mode=clean|dirty|mixed] → run a scenario (JSON)
   POST /scenario/{name}?stream=sse   (or Accept: text/event-stream) → SSE
+      · data-injection scenarios (healthy/dirty) call the real LMS /generate API
 
 Scenarios: dirty, healthy, failure, incident.
 
@@ -204,6 +205,53 @@ async def _probe_systems() -> dict:
     return {r["id"]: r for r in results}
 
 
+# Data-injection scenarios (healthy/dirty) drive the real LMS /generate endpoint.
+# Default mode per scenario when the caller doesn't pass an explicit mode; the
+# frontend inject control passes an explicit mode (clean|dirty|mixed) instead.
+DATA_MODES = {"healthy": "clean", "dirty": "dirty"}
+DEFAULT_INJECT_COUNT = 10000
+
+
+def _parse_int(value) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _lms_generate(count: int, mode: str) -> dict:
+    """POST {LMS_API_URL}/generate?count=N&mode=MODE → parsed JSON body."""
+    base = _url("LMS_API_URL")
+    url = f"{base}/generate?count={count}&mode={mode}"
+    req = urllib.request.Request(url, method="POST")
+    with urllib.request.urlopen(req, timeout=30) as r:
+        return json.load(r)
+
+
+async def _inject_lms(count: int, mode: str) -> dict:
+    """Call the real LMS /generate endpoint; return {ok, count, error}."""
+    try:
+        resp = await asyncio.to_thread(_lms_generate, count, mode)
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "count": count, "error": str(exc)}
+
+    # LMS API response shape is still being finalized — extract the injected
+    # count defensively from whichever common field carries it.
+    injected = None
+    if isinstance(resp, dict):
+        for key in ("count", "injected", "rows", "total", "generated"):
+            if isinstance(resp.get(key), int):
+                injected = resp[key]
+                break
+    return {
+        "ok": True,
+        "count": injected if injected is not None else count,
+        "error": None,
+    }
+
+
 def _simulated_ticket(run_id: str, title: str, note: str) -> dict:
     return {
         "id": f"sim-{uuid.uuid4().hex[:8]}",
@@ -261,11 +309,19 @@ async def _create_plane_ticket(run_id: str, breach_msg: str) -> dict:
     }
 
 
-async def generate(name: str):
-    """Async generator yielding (event, payload) tuples for a scenario run."""
+async def generate(name: str, count: int | None = None, mode: str | None = None):
+    """Async generator yielding (event, payload) tuples for a scenario run.
+
+    Data-injection scenarios (healthy/dirty) replace the simulated source write
+    with a real call to the LMS ``/generate`` endpoint (POST, ``count`` + ``mode``
+    params). Every other hop — and the failure/incident scenarios — are unchanged.
+    """
     scenario = SCENARIOS[name]
     run_id = str(uuid.uuid4())
     started = time.time()
+
+    inject_mode = mode or DATA_MODES.get(name)
+    inject_count = max(0, count) if count is not None else DEFAULT_INJECT_COUNT
 
     systems = await _probe_systems()
     yield "start", {
@@ -277,6 +333,7 @@ async def generate(name: str):
 
     hop_results: list[dict] = []
     failed = False
+    injected = None
 
     for hop in HOPS:
         cfg = scenario["hops"].get(hop["id"], {"status": "skipped"})
@@ -300,15 +357,42 @@ async def generate(name: str):
         }
 
         latency = cfg.get("latency", 100)
+        simulated = True
+        message = cfg.get("message", "")
+        metric = cfg.get("metric")
+
+        # Source hop of a data-injection scenario → real LMS /generate.
+        if hop["id"] == "lms" and inject_mode is not None:
+            if inject_count > 0:
+                result = await _inject_lms(inject_count, inject_mode)
+                if result["ok"]:
+                    simulated = False
+                    injected = {"count": result["count"], "mode": inject_mode, "real": True}
+                    metric = f"{result['count']:,} rows"
+                    message = (
+                        f"LMS /generate: {result['count']:,} rows injected "
+                        f"(mode={inject_mode})"
+                    )
+                else:
+                    injected = {"count": inject_count, "mode": inject_mode, "real": False}
+                    message = (
+                        f"LMS /generate unreachable ({result['error']}) — "
+                        f"simulated source write"
+                    )
+            else:
+                injected = {"count": 0, "mode": inject_mode, "real": False}
+                metric = "0 rows"
+                message = "LMS /generate skipped (count=0)"
+
         await asyncio.sleep(_latency_ms(latency) / 1000.0)
 
         payload = {
             "id": hop["id"], "node": hop["node"], "edge": hop["edge"],
             "label": hop["label"], "status": final_status,
             "latency_ms": round(_latency_ms(latency)),
-            "message": cfg.get("message", ""),
-            "metric": cfg.get("metric"),
-            "simulated": True,
+            "message": message,
+            "metric": metric,
+            "simulated": simulated,
         }
         hop_results.append(payload)
         yield "hop_done", payload
@@ -331,6 +415,7 @@ async def generate(name: str):
         "hops": hop_results,
         "ticket": ticket,
         "systems": systems,
+        "injected": injected,
     }
 
 
@@ -365,9 +450,15 @@ async def run_scenario(name: str, request: Request):
             status_code=404,
         )
 
+    params = request.query_params
+    count = _parse_int(params.get("count"))
+    mode = params.get("mode")
+    if mode and mode not in ("clean", "dirty", "mixed"):
+        mode = None
+
     if _wants_sse(request):
         async def stream():
-            async for event, payload in generate(name):
+            async for event, payload in generate(name, count=count, mode=mode):
                 yield _sse(event, payload)
 
         return StreamingResponse(
@@ -381,8 +472,11 @@ async def run_scenario(name: str, request: Request):
         )
 
     # JSON: collect final per-hop results + summary.
-    result = {"scenario": name, "id": None, "status": None, "hops": [], "ticket": None, "systems": {}}
-    async for event, payload in generate(name):
+    result = {
+        "scenario": name, "id": None, "status": None, "hops": [],
+        "ticket": None, "systems": {}, "injected": None,
+    }
+    async for event, payload in generate(name, count=count, mode=mode):
         if event == "start":
             result["id"] = payload["id"]
             result["title"] = payload["title"]
@@ -394,6 +488,7 @@ async def run_scenario(name: str, request: Request):
         elif event == "done":
             result["status"] = payload["status"]
             result["duration_ms"] = payload["duration_ms"]
+            result["injected"] = payload.get("injected")
     return result
 
 

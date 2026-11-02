@@ -46,7 +46,7 @@
   .chip .mode { color: var(--muted); }
 
   /* ── Scenario buttons ─────────────────────────────────────── */
-  .scenarios { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; max-width: 1200px; margin: 0 auto 26px; }
+  .scenarios { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; max-width: 1200px; margin: 0 auto 26px; }
   .scenario {
     background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
     padding: 14px 16px; color: var(--text); cursor: pointer; text-align: left;
@@ -59,6 +59,29 @@
   .scenario .glyph { font-size: 22px; line-height: 1; }
   .scenario .name { font-weight: 600; margin-top: 6px; font-size: 15px; }
   .scenario .desc { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+  /* ── Inject-data control ───────────────────────────────────── */
+  .inject-panel {
+    max-width: 1200px; margin: 0 auto 26px; display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px;
+  }
+  .inject-head { flex: 1 1 220px; display: flex; align-items: center; gap: 10px; }
+  .inject-head .glyph { font-size: 24px; }
+  .inject-head .name { font-weight: 600; font-size: 15px; }
+  .inject-head .desc { color: var(--muted); font-size: 12px; }
+  .field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); }
+  .field input, .field select {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 9px 10px; font: inherit; font-size: 14px; min-width: 150px;
+  }
+  .field input:focus, .field select:focus { outline: none; border-color: var(--blue); }
+  .inject-btn {
+    background: var(--panel-2); border: 1px solid var(--blue); color: var(--blue);
+    border-radius: 10px; padding: 11px 20px; cursor: pointer; font: inherit; font-weight: 600;
+    transition: border-color .15s ease, color .15s ease, transform .08s ease;
+  }
+  .inject-btn:hover:not(:disabled) { border-color: var(--green); color: var(--green); transform: translateY(-1px); }
+  .inject-btn:disabled { opacity: .45; cursor: not-allowed; }
 
   /* ── Pipeline topology ────────────────────────────────────── */
   .pipeline-wrap { max-width: 1200px; margin: 0 auto 26px; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 20px 12px; }
@@ -154,13 +177,30 @@
   <div class="targets" id="targets"></div>
 </header>
 
+<section class="inject-panel" id="inject-panel">
+  <div class="inject-head">
+    <span class="glyph">💉</span>
+    <div>
+      <div class="name">Inject Data</div>
+      <div class="desc">POST to LMS /generate — real source write</div>
+    </div>
+  </div>
+  <label class="field">
+    <span>Volume (rows)</span>
+    <input type="number" id="inject-count" value="10000" min="1" step="1">
+  </label>
+  <label class="field">
+    <span>Mode</span>
+    <select id="inject-mode">
+      <option value="clean">clean</option>
+      <option value="dirty">dirty</option>
+      <option value="mixed">mixed</option>
+    </select>
+  </label>
+  <button class="inject-btn" id="inject-btn">💉 Inject Data</button>
+</section>
+
 <section class="scenarios" id="scenarios">
-  <button class="scenario" data-scenario="healthy">
-    <div class="glyph">✅</div><div class="name">Healthy</div><div class="desc">End-to-end success, all DQ checks green</div>
-  </button>
-  <button class="scenario" data-scenario="dirty">
-    <div class="glyph">⚠️</div><div class="name">Dirty Data</div><div class="desc">NULLs flow through → DQ warning at Gold</div>
-  </button>
   <button class="scenario" data-scenario="failure">
     <div class="glyph">❌</div><div class="name">Failure</div><div class="desc">Iceberg sink commit fails, pipeline halts</div>
   </button>
@@ -211,6 +251,10 @@ const summary = $("#summary");
 const log = $("#log");
 const ticketBox = $("#ticket");
 const buttons = $$(".scenario");
+const injectBtn = $("#inject-btn");
+const injectCount = $("#inject-count");
+const injectMode = $("#inject-mode");
+const allButtons = () => [...buttons, injectBtn];
 
 let running = false;
 
@@ -331,18 +375,44 @@ function showTicket(t) {
     '<p>' + (t.note || "") + '</p>';
 }
 
+// ── Data-injection control ────────────────────────────────────
+// Mode select maps to the backend data scenario (clean→healthy, dirty/mixed→dirty).
+const INJECT_SCENARIO = { clean: "healthy", dirty: "dirty", mixed: "dirty" };
+
+function buildQuery(params) {
+  const p = [];
+  if (params && params.count != null && params.count !== "") p.push("count=" + encodeURIComponent(params.count));
+  if (params && params.mode) p.push("mode=" + encodeURIComponent(params.mode));
+  return p.join("&");
+}
+
+function injectSuffix(injected) {
+  if (!injected || injected.count == null) return "";
+  const sim = injected.real ? "" : " (simulated)";
+  return " — injected " + Number(injected.count).toLocaleString() + " rows · mode " + injected.mode + sim;
+}
+
+function runInject() {
+  const mode = injectMode.value;
+  const count = injectCount.value.trim();
+  const scenario = INJECT_SCENARIO[mode] || "dirty";
+  runScenario(scenario, { count: count || null, mode });
+}
+
 // ── Scenario runner (SSE via fetch stream) ─────────────────────
-async function runScenario(name) {
+async function runScenario(name, params) {
   if (running) return;
   running = true;
-  buttons.forEach(b => b.disabled = true);
+  allButtons().forEach(b => b.disabled = true);
   resetPipeline();
   log.innerHTML = "";
   ticketBox.hidden = true;
   setSummary("running", "Running: " + name + " …");
 
+  const q = buildQuery(params);
+
   try {
-    const res = await fetch("/scenario/" + name + "?stream=sse", { method: "POST" });
+    const res = await fetch("/scenario/" + name + "?stream=sse" + (q ? "&" + q : ""), { method: "POST" });
     if (!res.ok) throw new Error("HTTP " + res.status);
     if (!res.body || !res.body.getReader) throw new Error("no stream");
 
@@ -365,10 +435,10 @@ async function runScenario(name) {
     }
   } catch (err) {
     setSummary("failed", "Streaming failed (" + err.message + ") — falling back to JSON.");
-    await runJSON(name);
+    await runJSON(name, params);
   } finally {
     running = false;
-    buttons.forEach(b => b.disabled = false);
+    allButtons().forEach(b => b.disabled = false);
   }
 }
 
@@ -409,15 +479,16 @@ function handleSSE(chunk) {
         failed:  ["failed",  "✗ Pipeline failed in " + payload.duration_ms + " ms"],
         incident:["incident", "🚨 Incident raised — ticket opened in " + payload.duration_ms + " ms"],
       }[payload.status] || ["success", "done"];
-      setSummary(t[0], t[1]);
+      setSummary(t[0], t[1] + injectSuffix(payload.injected));
       renderTargets(payload.systems);
       break;
   }
 }
 
 // JSON fallback: apply final hop states quickly, in order.
-async function runJSON(name) {
-  const res = await fetch("/scenario/" + name, { method: "POST" });
+async function runJSON(name, params) {
+  const q = buildQuery(params);
+  const res = await fetch("/scenario/" + name + (q ? "?" + q : ""), { method: "POST" });
   if (!res.ok) { setSummary("failed", "Scenario failed: HTTP " + res.status); return; }
   const data = await res.json();
   renderTargets(data.systems);
@@ -437,10 +508,11 @@ async function runJSON(name) {
     await new Promise(r => setTimeout(r, 60));
   }
   if (data.ticket) showTicket(data.ticket);
-  setSummary(t[0], t[1]);
+  setSummary(t[0], t[1] + injectSuffix(data.injected));
 }
 
 buttons.forEach(b => b.addEventListener("click", () => runScenario(b.dataset.scenario)));
+injectBtn.addEventListener("click", runInject);
 
 layout();
 renderTargets(null);

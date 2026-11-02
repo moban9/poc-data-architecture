@@ -21,4 +21,11 @@ if [ ! -x /usr/local/lib/docker/cli-plugins/docker-compose ]; then
 fi
 
 log "docker ready: $(docker --version 2>&1)"
-log "stack is started by 'make deploy' (compose dir must be synced to /opt/poc/compose)"
+
+log "installing envsubst (gettext-base) for connector registration"
+apt-get update -qq && apt-get install -y -qq gettext-base >/dev/null 2>&1 || true
+
+log "adding ubuntu to docker group (deploy via SSH as ubuntu)"
+usermod -aG docker ubuntu || true
+
+log "stack is started by 'make deploy' (compose dir must be synced to /home/ubuntu/poc/compose)"

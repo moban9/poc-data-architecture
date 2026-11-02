@@ -1,0 +1,4 @@
+# Keep the local virtualenv out of the build context (it's 16+ MB).
+.venv/
+__pycache__/
+*.pyc

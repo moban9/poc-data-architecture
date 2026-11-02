@@ -88,6 +88,21 @@ resource "google_compute_firewall" "allow_iap_ssh" {
   target_tags   = [var.app_tag]
 }
 
+# POC: allow SSH from anywhere so the CI deploy step can reach the VM.
+# TIGHTEN to a known CIDR (GitHub runner / your IP) before any production use.
+resource "google_compute_firewall" "allow_ssh_public" {
+  name    = "${var.vpc_name}-allow-ssh-public"
+  network = google_compute_network.vpc.id
+
+  allow {
+    protocol = "tcp"
+    ports    = ["22"]
+  }
+
+  source_ranges = ["0.0.0.0/0"]
+  target_tags   = [var.app_tag]
+}
+
 # Allow all traffic within the VPC (service-to-service).
 resource "google_compute_firewall" "allow_internal" {
   name    = "${var.vpc_name}-allow-internal"
@@ -178,7 +193,7 @@ resource "google_compute_health_check" "app" {
 
 resource "google_compute_backend_service" "app" {
   name            = "${var.vpc_name}-backend"
-  protocol        = "HTTPS"
+  protocol        = "HTTP"
   health_checks   = [google_compute_health_check.app.id]
   security_policy = one(google_compute_security_policy.armor[*].id)
 
@@ -197,7 +212,12 @@ resource "google_compute_managed_ssl_certificate" "cert" {
   name = "${var.vpc_name}-managed-cert"
 
   managed {
-    domains = [var.cert_domain]
+    domains = [
+      "grafana.${var.cert_domain}",
+      "demo.${var.cert_domain}",
+      "bi.${var.cert_domain}",
+      "plane.${var.cert_domain}",
+    ]
   }
 }
 

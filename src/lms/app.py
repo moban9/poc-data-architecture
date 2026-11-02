@@ -1,0 +1,288 @@
+"""LMS source service — FastAPI REST API over the Postgres LMS database.
+
+This is the *source-of-truth write path* the demo control panel drives. It is
+intentionally permissive: the source system emits dirty rows (see
+``constants.DIRTY_MODES``) that the downstream dbt Silver tests are designed to
+catch and quarantine.
+
+Endpoints
+---------
+  GET  /health                      → liveness + db connectivity
+  GET  /                            → service metadata
+  POST /generate?count=N&mode=...   → insert N loans (+ events) across the 3 tables
+  POST /loans/{loan_id}/disburse    → record a disbursement event for a loan
+  POST /payments                    → record a payment event for a loan
+
+Modes for /generate
+-------------------
+  clean  — every row is fully valid
+  dirty  — every row trips one dbt test (the 5 dirty modes, cycled)
+  mixed  — ~10% dirty (per-request random), the rest clean
+"""
+from __future__ import annotations
+
+import random
+import uuid
+from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
+from typing import Optional
+
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
+from sqlalchemy import text
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import Session
+
+import constants
+import models
+from db import Base, engine, get_db, wait_for_db
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Best-effort: block for the DB, create tables if missing. A slow cold start
+    # won't crash the process (compose healthchecks order the start anyway);
+    # /health reports db status truthfully in the meantime.
+    try:
+        wait_for_db()
+        Base.metadata.create_all(bind=engine)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[lms-api] database not ready at startup: {exc}", flush=True)
+    yield
+
+
+app = FastAPI(title="LMS Source API", version="0.1.0", lifespan=lifespan)
+
+
+@app.exception_handler(OperationalError)
+async def _db_unavailable(request: Request, exc: OperationalError):
+    return JSONResponse(status_code=503, content={"error": "database unavailable"})
+
+
+# ─────────────────────────── request models ─────────────────────────────────
+
+class DisburseRequest(BaseModel):
+    amount: Optional[float] = Field(default=None, gt=0)
+    occurred_at: Optional[datetime] = None
+
+
+class PaymentRequest(BaseModel):
+    loan_id: str
+    amount: float = Field(gt=0)
+    occurred_at: Optional[datetime] = None
+
+
+# ─────────────────────────── helpers ────────────────────────────────────────
+
+def _new_id(prefix: str) -> str:
+    return f"{prefix}-{uuid.uuid4().hex[:12]}"
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _random_date() -> str:
+    return (_now().date() - timedelta(days=random.randint(0, 730))).isoformat()
+
+
+def _random_amount() -> float:
+    return round(random.uniform(500.0, 100_000.0), 2)
+
+
+def _random_currency() -> str:
+    return random.choice(constants.VALID_CURRENCIES)
+
+
+def _random_borrower_id() -> str:
+    return random.choice([b[0] for b in constants.SEED_BORROWERS])
+
+
+def _coerce_utc(dt: datetime) -> datetime:
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+
+
+def _make_loan_unit(loan_id: str, dirty_mode: Optional[str] = None):
+    """Build one clean loan + its events; ``dirty_mode`` mutates the unit."""
+    amount = _random_amount()
+    currency = _random_currency()
+    origination_date = _random_date()
+    borrower_id = _random_borrower_id()
+
+    if dirty_mode == "negative_amount":
+        amount = -round(random.uniform(100.0, 50_000.0), 2)
+    elif dirty_mode == "invalid_date":
+        origination_date = "not-a-date"
+    elif dirty_mode == "unsupported_currency":
+        currency = "XYZ"
+    elif dirty_mode == "orphan_borrower_id":
+        borrower_id = constants.ORPHAN_BORROWER_ID
+
+    loan = {
+        "id": loan_id,
+        "amount": amount,
+        "currency": currency,
+        "origination_date": origination_date,
+        "borrower_id": borrower_id,
+    }
+
+    occurred_at = _now() - timedelta(seconds=random.randint(0, 60 * 60 * 24 * 30))
+    events = [
+        {"id": _new_id("E"), "loan_id": loan_id, "event_type": "origination",
+         "amount": None, "occurred_at": occurred_at},
+    ]
+    if random.random() < 0.6:
+        events.append({"id": _new_id("E"), "loan_id": loan_id, "event_type": "disbursement",
+                       "amount": amount,
+                       "occurred_at": occurred_at + timedelta(minutes=random.randint(1, 60))})
+    if random.random() < 0.5:
+        events.append({"id": _new_id("E"), "loan_id": loan_id, "event_type": "payment",
+                       "amount": round(random.uniform(50.0, 2000.0), 2),
+                       "occurred_at": occurred_at + timedelta(days=random.randint(1, 30))})
+
+    if dirty_mode == "null_loan_id":
+        events[0]["loan_id"] = None
+
+    return loan, events
+
+
+def ensure_borrowers(db: Session) -> int:
+    """Idempotently insert the four valid borrowers (B-1001..B-1004)."""
+    rows = [{"id": b[0], "full_name": b[1]} for b in constants.SEED_BORROWERS]
+    stmt = pg_insert(models.Borrower).values(rows).on_conflict_do_nothing(index_elements=["id"])
+    db.execute(stmt)
+    db.commit()
+    return len(rows)
+
+
+def _event_to_dict(ev: models.LoanEvent) -> dict:
+    return {
+        "id": ev.id,
+        "loan_id": ev.loan_id,
+        "event_type": ev.event_type,
+        "amount": float(ev.amount) if ev.amount is not None else None,
+        "occurred_at": ev.occurred_at.isoformat() if ev.occurred_at else None,
+    }
+
+
+# ─────────────────────────── routes ─────────────────────────────────────────
+
+@app.get("/")
+def root():
+    return {
+        "service": "lms-api",
+        "tables": ["borrower", "loan", "loan_event"],
+        "health": "/health",
+        "endpoints": [
+            "POST /generate?count=N&mode=clean|dirty|mixed",
+            "POST /loans/{loan_id}/disburse",
+            "POST /payments",
+        ],
+    }
+
+
+@app.get("/health")
+def health(db: Session = Depends(get_db)):
+    db_ok = True
+    try:
+        db.execute(text("SELECT 1"))
+    except Exception:  # noqa: BLE001
+        db_ok = False
+    return {"status": "ok", "db": "ok" if db_ok else "unreachable"}
+
+
+@app.post("/generate")
+def generate(
+    count: int = Query(default=1, ge=1, le=100_000),
+    mode: str = Query(default="clean"),
+    db: Session = Depends(get_db),
+):
+    if mode not in constants.VALID_GENERATE_MODES:
+        raise HTTPException(400, f"mode must be one of {constants.VALID_GENERATE_MODES}")
+
+    if mode == "clean":
+        dirty_flags = [False] * count
+    elif mode == "dirty":
+        dirty_flags = [True] * count
+    else:  # mixed — ~10% dirty
+        dirty_flags = [random.random() < constants.MIXED_DIRTY_RATE for _ in range(count)]
+
+    ensure_borrowers(db)
+
+    loans: list[dict] = []
+    events: list[dict] = []
+    dirty_count = 0
+    mode_counts = {m: 0 for m in constants.DIRTY_MODES}
+    mode_i = 0
+    for is_dirty in dirty_flags:
+        dirty_mode = None
+        if is_dirty:
+            dirty_mode = constants.DIRTY_MODES[mode_i % len(constants.DIRTY_MODES)]
+            mode_i += 1
+            dirty_count += 1
+            mode_counts[dirty_mode] += 1
+        loan, evs = _make_loan_unit(_new_id("L"), dirty_mode)
+        loans.append(loan)
+        events.extend(evs)
+
+    db.bulk_insert_mappings(models.Loan, loans)
+    db.bulk_insert_mappings(models.LoanEvent, events)
+    db.commit()
+
+    return {
+        "mode": mode,
+        "requested": count,
+        "loans": len(loans),
+        "loan_events": len(events),
+        "borrowers_ensured": len(constants.SEED_BORROWERS),
+        "dirty": dirty_count,
+        "dirty_modes": mode_counts,
+    }
+
+
+@app.post("/loans/{loan_id}/disburse", status_code=201)
+def disburse(
+    loan_id: str,
+    body: Optional[DisburseRequest] = None,
+    db: Session = Depends(get_db),
+):
+    loan = db.get(models.Loan, loan_id)
+    if loan is None:
+        raise HTTPException(404, f"loan '{loan_id}' not found")
+
+    amount = body.amount if body and body.amount is not None else float(loan.amount)
+    occurred_at = _coerce_utc(body.occurred_at) if body and body.occurred_at else _now()
+
+    event = models.LoanEvent(
+        id=_new_id("E"), loan_id=loan_id, event_type="disbursement",
+        amount=amount, occurred_at=occurred_at,
+    )
+    db.add(event)
+    db.commit()
+    db.refresh(event)
+    return {"loan_id": loan_id, "event": _event_to_dict(event)}
+
+
+@app.post("/payments", status_code=201)
+def record_payment(body: PaymentRequest, db: Session = Depends(get_db)):
+    loan = db.get(models.Loan, body.loan_id)
+    if loan is None:
+        raise HTTPException(404, f"loan '{body.loan_id}' not found")
+
+    occurred_at = _coerce_utc(body.occurred_at) if body.occurred_at else _now()
+    event = models.LoanEvent(
+        id=_new_id("E"), loan_id=body.loan_id, event_type="payment",
+        amount=body.amount, occurred_at=occurred_at,
+    )
+    db.add(event)
+    db.commit()
+    db.refresh(event)
+    return {"loan_id": body.loan_id, "event": _event_to_dict(event)}
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run("app:app", host="0.0.0.0", port=int(__import__("os").environ.get("PORT", "8000")))

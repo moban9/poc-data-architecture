@@ -1,0 +1,27 @@
+# Traefik static (install) configuration for the edge layer.
+#
+# NOTE: Traefik keeps static config (entryPoints, providers, api, ...) and
+# routing config (http.routers / http.services) in SEPARATE files — merging them
+# into one file fails at startup with "field not found, node: http". The file
+# provider below loads the routing config from dynamic.yml.
+#
+# TLS is terminated upstream by the GCP LB (managed cert for *.onendo.cloud), so
+# Traefik only needs to listen for plain HTTP on :80 here.
+
+entryPoints:
+  web:
+    address: ":80"
+
+providers:
+  file:
+    filename: /etc/traefik/dynamic.yml
+    watch: true
+
+log:
+  level: INFO
+
+# Optional: Traefik dashboard (uncomment and publish :8080 in compose/traefik.yml
+# if you want to inspect routers/services in the browser).
+# api:
+#   insecure: true
+#   dashboard: true

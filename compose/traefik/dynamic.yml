@@ -1,0 +1,43 @@
+# Traefik routing (dynamic) configuration — loaded by the file provider declared
+# in traefik.yml. Every router/service is declared explicitly (no docker provider).
+#
+# Host rules use Go templating to inject the base domain:
+#   {{ env "DOMAIN" "onendo.cloud" }}   → reads the DOMAIN env var (set on the
+#                                         traefik container), falling back to
+#                                         onendo.cloud.
+http:
+  routers:
+    grafana:
+      entryPoints: [web]
+      rule: 'Host(`grafana.{{ env "DOMAIN" "onendo.cloud" }}`)'
+      service: grafana
+    demo:
+      entryPoints: [web]
+      rule: 'Host(`demo.{{ env "DOMAIN" "onendo.cloud" }}`)'
+      service: demo
+    bi:
+      entryPoints: [web]
+      rule: 'Host(`bi.{{ env "DOMAIN" "onendo.cloud" }}`)'
+      service: metabase
+    plane:
+      entryPoints: [web]
+      rule: 'Host(`plane.{{ env "DOMAIN" "onendo.cloud" }}`)'
+      service: plane-web
+
+  services:
+    grafana:
+      loadBalancer:
+        servers:
+          - url: http://grafana:3000
+    demo:
+      loadBalancer:
+        servers:
+          - url: http://demo:8000
+    metabase:
+      loadBalancer:
+        servers:
+          - url: http://metabase:3000
+    plane-web:
+      loadBalancer:
+        servers:
+          - url: http://plane-web:80

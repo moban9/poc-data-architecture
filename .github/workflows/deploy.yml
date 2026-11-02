@@ -8,30 +8,28 @@ on:
         required: true
         default: "gcp"
         type: choice
-        options: [gcp, aws]
+        options: [gcp]
 
 permissions:
   contents: read
-  id-token: write   # required for GCP Workload Identity Federation (OIDC)
+  id-token: write   # GCP Workload Identity Federation (OIDC)
   issues: write     # auto-create incident tickets on failure
 
 jobs:
   validate:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        dir: [terraform/gcp, terraform/aws]
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
       - name: terraform fmt + validate
-        working-directory: ${{ matrix.dir }}
+        working-directory: terraform/gcp
         run: |
           terraform fmt -check
           terraform init -backend=false
           terraform validate
-      - name: compose config lint
-        run: docker compose -f compose/docker-compose.yml config -q
+      - name: compose config lint (all files)
+        run: |
+          docker compose -f compose/docker-compose.yml -f compose/monitoring.yml -f compose/traefik.yml config -q
 
   deploy:
     needs: validate
@@ -40,17 +38,16 @@ jobs:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
 
-      # GCP — authenticate via Workload Identity Federation (no service-account key)
       - id: gcp-auth
-        if: ${{ (inputs.provider || 'gcp') == 'gcp' }}
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: 'projects/445642900277/locations/global/workloadIdentityPools/hermes-poc-pool/providers/hermes-oidc'
           service_account: 'hermes-poc@project-955f419f-217d-449b-950.iam.gserviceaccount.com'
 
+      - uses: google-github-actions/setup-gcloud@v2
+
       - name: terraform apply (GCP)
         id: apply-gcp
-        if: ${{ (inputs.provider || 'gcp') == 'gcp' }}
         working-directory: terraform/gcp
         env:
           TF_VAR_project_id: project-955f419f-217d-449b-950
@@ -59,22 +56,40 @@ jobs:
         run: |
           terraform init
           terraform apply -auto-approve
-          echo "IP=$(terraform output -raw instance_public_ip)" >> "$GITHUB_OUTPUT"
+          echo "lb_ip=$(terraform output -raw load_balancer_ip)" >> "$GITHUB_OUTPUT"
 
-      - name: terraform apply (AWS)
-        id: apply-aws
-        if: ${{ (inputs.provider || 'gcp') == 'aws' }}
-        working-directory: terraform/aws
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: us-east-1
+      - name: deploy stack (clone + compose up over SSH)
         run: |
-          terraform init
-          terraform apply -auto-approve
-          echo "IP=$(terraform output -raw instance_public_ip)" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          VM_NAME="poc-vm"          # ${var.name}-vm
+          ZONE="asia-southeast2-a"
+          SSH_FLAGS=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
+          # wait for SSH to come up (startup script installs docker + envsubst)
+          for i in $(seq 1 20); do
+            if gcloud compute ssh "ubuntu@${VM_NAME}" --zone="$ZONE" --quiet \
+                 --ssh-flag="${SSH_FLAGS[0]}" --ssh-flag="${SSH_FLAGS[1]}" \
+                 --command="command -v docker >/dev/null && echo ready" 2>/dev/null | grep -q ready; then
+              echo "VM ready"; break
+            fi
+            sleep 15
+          done
+          gcloud compute ssh "ubuntu@${VM_NAME}" --zone="$ZONE" --quiet \
+            --ssh-flag="${SSH_FLAGS[0]}" --ssh-flag="${SSH_FLAGS[1]}" \
+            --command="rm -rf /home/ubuntu/poc && git clone --depth 1 https://x-access-token:${GITHUB_TOKEN}@github.com/moban9/poc-data-architecture.git /home/ubuntu/poc"
+          gcloud compute ssh "ubuntu@${VM_NAME}" --zone="$ZONE" --quiet \
+            --ssh-flag="${SSH_FLAGS[0]}" --ssh-flag="${SSH_FLAGS[1]}" \
+            --command="cd /home/ubuntu/poc/compose && docker compose -f docker-compose.yml -f monitoring.yml -f traefik.yml up -d --pull always"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
-      # Any failure in this job → auto-open an incident ticket
+      - name: report endpoints
+        run: |
+          echo "LB IP (point DNS A records here): ${{ steps.apply-gcp.outputs.lb_ip }}"
+          echo "https://grafana.onendo.cloud"
+          echo "https://demo.onendo.cloud"
+          echo "https://bi.onendo.cloud"
+          echo "https://plane.onendo.cloud"
+
       - name: Create incident ticket
         if: failure()
         uses: actions/github-script@v7
@@ -88,6 +103,3 @@ jobs:
               title: `[INCIDENT] POC deploy failed — run ${runId}`,
               body: `Deploy workflow failed.\nRun: ${url}\n\nInvestigate, remediate, then close this ticket.`
             });
-
-    outputs:
-      ip: ${{ steps.apply-gcp.outputs.IP || steps.apply-aws.outputs.IP }}

@@ -64,14 +64,14 @@ variable "proxy_subnet_cidr" {
 
 variable "cert_domain" {
   type        = string
-  default     = "poc.example.com"
-  description = "Domain for the Google-managed SSL cert. Create a DNS A record pointing it at the LB IP after apply, or the cert stays PROVISIONING."
+  default     = "onendo.cloud"
+  description = "Base domain for the Google-managed SSL cert. Add DNS A records for grafana/demo/bi/plane.<domain> pointing at the LB IP after apply, or the cert stays PROVISIONING."
 }
 
 variable "app_port" {
   type        = number
-  default     = 443
-  description = "TCP port the app listens on (LB backend, health check, firewall)"
+  default     = 80
+  description = "TCP port the reverse proxy (Traefik) listens on — LB backend, health check, firewall."
 }
 
 variable "lb_ingress_ports" {
