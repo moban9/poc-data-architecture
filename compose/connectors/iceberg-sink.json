@@ -13,6 +13,7 @@
   "iceberg.tables.auto-create-props.format-version": "2",
   "iceberg.tables.auto-create-props.write.format.default": "parquet",
   "iceberg.control.topic": "control-iceberg",
+  "iceberg.control.commit.interval-ms": "10000",
   "iceberg.catalog.type": "rest",
   "iceberg.catalog.uri": "${ICEBERG_CATALOG_URI}",
   "iceberg.catalog.warehouse": "${ICEBERG_WAREHOUSE}",

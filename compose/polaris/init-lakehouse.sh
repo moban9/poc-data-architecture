@@ -70,6 +70,7 @@ PAYLOAD=$(jq -n \
          region: $region,
          accessKeyId: $ak,
          secretAccessKey: $sk
+         stsUnavailable: true
        }
      }
    }')

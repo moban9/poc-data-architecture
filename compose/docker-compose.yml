@@ -67,7 +67,7 @@ services:
     restart: unless-stopped
   minio:
     image: ${MINIO_IMAGE:-adobe/s3mock:latest}
-    command: ["--server.port=9000"]
+    command: ["--http.port=9000"]
     environment:
       initialBuckets: ${MINIO_BUCKET:-lakehouse}
       root: /data
@@ -210,6 +210,8 @@ services:
       POLARIS_CLIENT_ID: ${POLARIS_CLIENT_ID:-root}
       POLARIS_CLIENT_SECRET: ${POLARIS_CLIENT_SECRET:-CHANGE_ME_polaris_root}
       MINIO_ENDPOINT: ${MINIO_ENDPOINT:-http://minio:9000}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-CHANGE_ME_minio}
       MINIO_REGION: ${MINIO_REGION:-us-east-1}
     ports:
     - "8080:8080"
