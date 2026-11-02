@@ -73,7 +73,7 @@ services:
       - prometheus_data:/prometheus
     depends_on: [alertmanager, pushgateway]
     restart: unless-stopped
-    networks: [lms-poc]
+    networks: [default]
 
   alertmanager:
     image: ${ALERTMANAGER_IMAGE:-prom/alertmanager:latest}
@@ -85,13 +85,13 @@ services:
       - ../monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
       - alertmanager_data:/alertmanager
     restart: unless-stopped
-    networks: [lms-poc]
+    networks: [default]
 
   pushgateway:
     image: ${PUSHGATEWAY_IMAGE:-prom/pushgateway:latest}
     ports: ["9091:9091"]
     restart: unless-stopped
-    networks: [lms-poc]
+    networks: [default]
 
   grafana:
     image: ${GRAFANA_IMAGE:-grafana/grafana:latest}
@@ -106,7 +106,7 @@ services:
       - ../monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on: [prometheus]
     restart: unless-stopped
-    networks: [lms-poc]
+    networks: [default]
 
   # ── Alertmanager → Plane ticket bridge ──────────────────────────────────────
   ticket-bridge:
@@ -127,7 +127,7 @@ services:
       - ../monitoring/scripts/ticket-bridge.py:/app/ticket-bridge.py:ro
     depends_on: [plane]
     restart: unless-stopped
-    networks: [lms-poc]
+    networks: [default]
 
   # ── Plane (incident ticketing engine) ───────────────────────────────────────
   # Trimmed self-host set: db + redis + mq + minio + migrator + api + worker +
@@ -142,13 +142,13 @@ services:
       <<: [*plane-db-env]
     volumes: ["plane_pg_data:/var/lib/postgresql/data"]
     restart: unless-stopped
-    networks: [lms-poc]
+    networks: [default]
 
   plane-redis:
     image: ${PLANE_REDIS_IMAGE:-valkey/valkey:7.2.11-alpine}
     volumes: ["plane_redis_data:/data"]
     restart: unless-stopped
-    networks: [lms-poc]
+    networks: [default]
 
   plane-mq:
     image: ${PLANE_MQ_IMAGE:-rabbitmq:3.13.6-management-alpine}
@@ -156,7 +156,7 @@ services:
       <<: [*plane-mq-env]
     volumes: ["plane_mq_data:/var/lib/rabbitmq"]
     restart: unless-stopped
-    networks: [lms-poc]
+    networks: [default]
 
   plane-minio:
     image: ${PLANE_MINIO_IMAGE:-adobe/s3mock:latest}
@@ -166,7 +166,7 @@ services:
       root: /export
     volumes: ["plane_minio_data:/export"]
     restart: unless-stopped
-    networks: [lms-poc]
+    networks: [default]
 
   plane-migrator:
     image: makeplane/plane-backend:${PLANE_APP_RELEASE:-stable}
@@ -175,7 +175,7 @@ services:
       <<: [*plane-app-env, *plane-db-env, *plane-redis-env, *plane-minio-env, *plane-s3-env, *plane-mq-env]
     depends_on: [plane-db, plane-redis, plane-mq]
     restart: "on-failure"
-    networks: [lms-poc]
+    networks: [default]
 
   plane:
     image: makeplane/plane-backend:${PLANE_APP_RELEASE:-stable}
@@ -185,7 +185,7 @@ services:
     ports: ["8010:8000"]
     depends_on: [plane-db, plane-redis, plane-mq, plane-minio]
     restart: unless-stopped
-    networks: [lms-poc]
+    networks: [default]
 
   plane-worker:
     image: makeplane/plane-backend:${PLANE_APP_RELEASE:-stable}
@@ -194,18 +194,14 @@ services:
       <<: [*plane-app-env, *plane-db-env, *plane-redis-env, *plane-minio-env, *plane-s3-env, *plane-mq-env]
     depends_on: [plane, plane-db, plane-redis, plane-mq, plane-minio]
     restart: unless-stopped
-    networks: [lms-poc]
+    networks: [default]
 
   plane-web:
     image: makeplane/plane-frontend:${PLANE_APP_RELEASE:-stable}
     ports: ["3010:80"]
     depends_on: [plane]
     restart: unless-stopped
-    networks: [lms-poc]
-
-networks:
-  lms-poc:
-    external: true
+    networks: [default]
 
 volumes:
   prometheus_data:

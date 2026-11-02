@@ -11,7 +11,6 @@
 # network, the same pattern as monitoring.yml. Bring it up AFTER the main stack
 # (which creates the network):
 #     docker compose -f traefik.yml up -d
-name: lms-edge
 
 services:
   traefik:
@@ -25,9 +24,5 @@ services:
       # Base domain used by the Host rules in dynamic.yml (via Go templating).
       DOMAIN: ${DOMAIN:-onendo.cloud}
     networks:
-      - lms-poc
+      - default
     restart: unless-stopped
-
-networks:
-  lms-poc:
-    external: true
