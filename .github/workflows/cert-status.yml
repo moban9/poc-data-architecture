@@ -1,0 +1,24 @@
+name: cert-status
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/445642900277/locations/global/workloadIdentityPools/hermes-poc-pool/providers/hermes-oidc'
+          service_account: 'hermes-poc@project-955f419f-217d-449b-950.iam.gserviceaccount.com'
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: cert status
+        run: |
+          gcloud compute ssl-certificates list --format="table(name,managed.status,managed.domainStatus)"
+          echo "--- describe ---"
+          gcloud compute ssl-certificates describe poc-vpc-managed-cert \
+            --format="json(managed.status, managed.domainStatus)" 2>&1
