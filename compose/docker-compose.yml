@@ -196,6 +196,49 @@ services:
     mem_limit: 1536m
     cpus: 1.0
 
+  # One-shot: (re-)register the Debezium source + Iceberg sink connectors with
+  # Kafka Connect (idempotent PUT upsert). Re-runs on every `up -d`, so a VM
+  # reboot re-registers the connectors regardless of Kafka config-topic state.
+  register-connectors:
+    image: ${POLARIS_SETUP_IMAGE:-alpine/curl:latest}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+    - >
+      apk add --no-cache bash gettext jq >/dev/null &&
+      bash /connectors/register-connectors.sh
+    environment:
+      CONNECT_URL: http://connect:8083
+      LMS_DB_HOST: lms-postgres
+      LMS_DB_PORT: "5432"
+      LMS_DB_USER: ${LMS_DB_USER:-lms}
+      LMS_DB_PASSWORD: ${LMS_DB_PASSWORD:-lms}
+      LMS_DB_NAME: ${LMS_DB_NAME:-lms}
+      LMS_TOPIC_PREFIX: ${LMS_TOPIC_PREFIX:-lms}
+      DBZ_TABLE_INCLUDE_LIST: ${DBZ_TABLE_INCLUDE_LIST:-public.loan,public.loan_event,public.borrower}
+      DBZ_SLOT_NAME: ${DBZ_SLOT_NAME:-lms_poc_debezium}
+      DBZ_PUBLICATION_NAME: ${DBZ_PUBLICATION_NAME:-lms_poc_publication}
+      ICEBERG_CATALOG_URI: ${ICEBERG_CATALOG_URI:-http://polaris:8181/api/catalog}
+      ICEBERG_WAREHOUSE: ${ICEBERG_WAREHOUSE:-lakehouse}
+      ICEBERG_TABLES: ${ICEBERG_TABLES:-bronze.loan,bronze.loan_event,bronze.borrower}
+      SINK_TOPICS_REGEX: ${SINK_TOPICS_REGEX:-lms.public.*}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-http://minio:9000}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-CHANGE_ME_minio}
+      MINIO_PATH_STYLE: ${MINIO_PATH_STYLE:-true}
+      MINIO_REGION: ${MINIO_REGION:-us-east-1}
+      POLARIS_CREDENTIAL: ${POLARIS_CREDENTIAL:-root:CHANGE_ME_polaris_root}
+      POLARIS_SCOPE: ${POLARIS_SCOPE:-PRINCIPAL_ROLE:ALL}
+    volumes:
+    - ./connectors:/connectors:ro
+    depends_on:
+      connect:
+        condition: service_started
+      polaris:
+        condition: service_started
+      minio:
+        condition: service_started
+    restart: "no"
+
   # ── Compute / transform / serve ────────────────────────────────────────────
     restart: unless-stopped
   trino:
