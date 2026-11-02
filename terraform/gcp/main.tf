@@ -36,9 +36,9 @@ module "network" {
   private_subnet_cidr = var.private_subnet_cidr
   proxy_subnet_cidr   = var.proxy_subnet_cidr
 
-  app_port          = var.app_port
-  lb_ingress_ports  = var.lb_ingress_ports
-  app_tag           = var.app_tag
+  app_port           = var.app_port
+  lb_ingress_ports   = var.lb_ingress_ports
+  app_tag            = var.app_tag
   enable_cloud_armor = var.enable_cloud_armor
 
   # Attach the app VM to the LB's unmanaged instance group.

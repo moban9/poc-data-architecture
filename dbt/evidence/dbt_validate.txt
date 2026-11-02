@@ -1,0 +1,103 @@
+=== venv ===
+=== pip upgrade ===
+=== install dbt-core dbt-trino (may take a bit) ===
+install_rc=0
+=== dbt --version ===
+INFO:trino.auth:keyring module not found. OAuth2 token will not be stored in keyring.
+INFO:trino.auth:keyring module not found. OAuth2 token will not be stored in keyring.
+Core:
+  - installed: 1.12.6
+  - latest:    1.12.6 - Up to date!
+
+Plugins:
+  - trino: 1.11.0 - Up to date!
+
+
+[0m07:44:20  dbt v2 is available, and is the default for new installations. This is dbt Core v1.
+          New project - install v2: https://docs.getdbt.com/docs/local/install-dbt?utm_source=dbt-cli
+          Existing v1 project - upgrade guide: https://docs.getdbt.com/docs/dbt-versions/dbt-upgrade/upgrading-to-v2?utm_source=dbt-cli
+=== dbt parse ===
+[0m07:44:22  Running with dbt=1.12.6
+INFO:trino.auth:keyring module not found. OAuth2 token will not be stored in keyring.
+INFO:trino.auth:keyring module not found. OAuth2 token will not be stored in keyring.
+[0m07:44:22  Registered adapter: trino=1.11.0
+[0m07:44:23  [[33mWARNING[0m][MissingArgumentsPropertyInGenericTestDeprecation]: Deprecated
+functionality
+Found top-level arguments to test `accepted_values` defined on 'dirty_data' in
+package 'lms_poc' (seeds/properties.yml). Arguments to generic tests should be
+nested under the `arguments` property.
+[0m07:44:23  [[33mWARNING[0m]: Configuration paths exist in your dbt_project.yml file which do not apply to any resources.
+There are 1 unused configuration paths:
+- models.lms_poc.gold
+[0m07:44:23  Performance info: /opt/data/poc-iac/dbt/target/perf_info.json
+[0m07:44:24  [[33mWARNING[0m][DeprecationsSummary]: Deprecated functionality
+Summary of encountered deprecations:
+- MissingArgumentsPropertyInGenericTestDeprecation: 5 occurrences
+To see all deprecation instances instead of just the first occurrence of each,
+run command again with the `--show-all-deprecations` flag. You may also need to
+run with `--no-partial-parse` as some deprecations are only encountered during
+parsing.
+parse_rc=0
+=== dbt ls (dag order) ===
+[0m07:44:28  Running with dbt=1.12.6
+INFO:trino.auth:keyring module not found. OAuth2 token will not be stored in keyring.
+INFO:trino.auth:keyring module not found. OAuth2 token will not be stored in keyring.
+[0m07:44:28  Registered adapter: trino=1.11.0
+[0m07:44:29  [[33mWARNING[0m][MissingArgumentsPropertyInGenericTestDeprecation]: Deprecated
+functionality
+Found top-level arguments to test `accepted_values` defined on 'dirty_data' in
+package 'lms_poc' (seeds/properties.yml). Arguments to generic tests should be
+nested under the `arguments` property.
+[0m07:44:30  [[33mWARNING[0m]: Configuration paths exist in your dbt_project.yml file which do not apply to any resources.
+There are 1 unused configuration paths:
+- models.lms_poc.gold
+[0m07:44:30  Found 10 models, 2 seeds, 1 operation, 26 data tests, 3 sources, 515 macros
+lms_poc.silver.dim_borrower
+lms_poc.silver.loan
+lms_poc.silver.loan_event
+lms_poc.quarantine
+lms_poc.silver.quarantine.quarantine_loan_amount_positive
+lms_poc.silver.quarantine.quarantine_loan_borrower_relationship
+lms_poc.silver.quarantine.quarantine_loan_currency_accepted
+lms_poc.silver.quarantine.quarantine_loan_id_not_null
+lms_poc.silver.quarantine.quarantine_loan_origination_date_valid
+lms_poc.silver.stg_loan
+lms_poc.borrowers
+lms_poc.dirty_data
+source:lms_poc.bronze.borrower
+source:lms_poc.bronze.loan
+source:lms_poc.bronze.loan_event
+lms_poc.accepted_values_dirty_data_currency__True__USD__EUR__GBP__JPY__CAD__AUD
+lms_poc.accepted_values_loan_currency__True__USD__EUR__GBP__JPY__CAD__AUD
+lms_poc.not_null_borrowers_full_name
+lms_poc.not_null_borrowers_id
+lms_poc.not_null_dim_borrower_id
+lms_poc.not_null_dirty_data_id
+lms_poc.not_null_loan_borrower_id
+lms_poc.not_null_loan_currency
+lms_poc.not_null_loan_event_event_type
+lms_poc.not_null_loan_event_id
+lms_poc.not_null_loan_event_loan_id
+lms_poc.not_null_loan_event_occurred_at
+lms_poc.not_null_loan_id
+lms_poc.not_null_loan_origination_date
+lms_poc.positive_value_dirty_data_amount
+lms_poc.positive_value_loan_amount
+lms_poc.relationships_dirty_data_borrower_id__id__ref_dim_borrower_
+lms_poc.relationships_loan_borrower_id__id__ref_dim_borrower_
+lms_poc.relationships_loan_event_loan_id__id__ref_loan_
+lms_poc.unique_borrowers_id
+lms_poc.unique_dim_borrower_id
+lms_poc.unique_dirty_data_id
+lms_poc.unique_loan_event_id
+lms_poc.unique_loan_id
+lms_poc.valid_date_dirty_data_origination_date
+lms_poc.valid_date_loan_origination_date
+[0m07:44:30  [[33mWARNING[0m][DeprecationsSummary]: Deprecated functionality
+Summary of encountered deprecations:
+- MissingArgumentsPropertyInGenericTestDeprecation: 5 occurrences
+To see all deprecation instances instead of just the first occurrence of each,
+run command again with the `--show-all-deprecations` flag. You may also need to
+run with `--no-partial-parse` as some deprecations are only encountered during
+parsing.
+ls_rc=0

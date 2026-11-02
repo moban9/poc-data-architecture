@@ -1,0 +1,364 @@
+[0m07:44:22.047886 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x77ef486a7b60>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x77ef4a407110>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x77ef46e8b890>]}
+
+
+============================== 07:44:22.054657 | a642809d-f8e5-47e3-96f0-89ccfc87eacf ==============================
+[0m07:44:22.054657 [info ] [MainThread]: Running with dbt=1.12.6
+[0m07:44:22.055071 [debug] [MainThread]: running dbt with arguments {'profiles_dir': '/opt/data/profiles/cask/home/.dbt', 'quiet': 'False', 'warn_error': 'None', 'introspect': 'True', 'target_path': 'None', 'invocation_command': 'dbt parse --no-partial-parse', 'version_check': 'True', 'partial_parse': 'False', 'cache_selected_only': 'False', 'printer_width': '80', 'warn_error_options': 'WarnErrorOptionsV2(error=[], warn=[], silence=[])', 'static_parser': 'True', 'log_format': 'default', 'no_print': 'None', 'write_json': 'True', 'hints_enabled': 'True', 'maximum_seed_size_mib': '1', 'log_cache_events': 'False', 'use_experimental_parser': 'False', 'log_path': '/opt/data/poc-iac/dbt/logs', 'fail_fast': 'False', 'use_colors': 'True', 'indirect_selection': 'eager', 'empty': 'None', 'debug': 'False', 'send_anonymous_usage_stats': 'True'}
+[0m07:44:22.230106 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'project_id', 'label': 'a642809d-f8e5-47e3-96f0-89ccfc87eacf', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x77ef46cd1810>]}
+[0m07:44:22.291475 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'adapter_info', 'label': 'a642809d-f8e5-47e3-96f0-89ccfc87eacf', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x77ef4829f9b0>]}
+[0m07:44:22.292253 [info ] [MainThread]: Registered adapter: trino=1.11.0
+[0m07:44:22.413549 [debug] [MainThread]: checksum: f8fbfb52f22f5a50a5e7ab9a361a0bbfb599233933065a1a3a5dfd0c1185eacb, vars: {}, profile: lms_poc, target: dev, version: 1.12.6
+[0m07:44:22.414112 [debug] [MainThread]: Partial parsing not enabled
+[0m07:44:23.580240 [warn ] [MainThread]: [[33mWARNING[0m][MissingArgumentsPropertyInGenericTestDeprecation]: Deprecated
+functionality
+Found top-level arguments to test `accepted_values` defined on 'dirty_data' in
+package 'lms_poc' (seeds/properties.yml). Arguments to generic tests should be
+nested under the `arguments` property.
+[0m07:44:23.580703 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'deprecation', 'label': 'a642809d-f8e5-47e3-96f0-89ccfc87eacf', 'property_': 'warn', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x77ef466f6250>]}
+[0m07:44:23.970133 [warn ] [MainThread]: [[33mWARNING[0m]: Configuration paths exist in your dbt_project.yml file which do not apply to any resources.
+There are 1 unused configuration paths:
+- models.lms_poc.gold
+[0m07:44:23.972962 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'load_project', 'label': 'a642809d-f8e5-47e3-96f0-89ccfc87eacf', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x77ef4684f980>]}
+[0m07:44:23.975522 [info ] [MainThread]: Performance info: /opt/data/poc-iac/dbt/target/perf_info.json
+[0m07:44:24.062202 [debug] [MainThread]: Wrote artifact WritableManifest to /opt/data/poc-iac/dbt/target/manifest.json
+[0m07:44:24.063799 [debug] [MainThread]: Wrote artifact SemanticManifest to /opt/data/poc-iac/dbt/target/semantic_manifest.json
+[0m07:44:24.073044 [debug] [MainThread]: Wrote artifact OsiDocument to /opt/data/poc-iac/dbt/target/osi_document.json
+[0m07:44:24.073504 [warn ] [MainThread]: [[33mWARNING[0m][DeprecationsSummary]: Deprecated functionality
+Summary of encountered deprecations:
+- MissingArgumentsPropertyInGenericTestDeprecation: 5 occurrences
+To see all deprecation instances instead of just the first occurrence of each,
+run command again with the `--show-all-deprecations` flag. You may also need to
+run with `--no-partial-parse` as some deprecations are only encountered during
+parsing.
+[0m07:44:24.074074 [debug] [MainThread]: Resource report: {"command_name": "parse", "command_success": true, "command_wall_clock_time": 2.096474, "process_in_blocks": "160", "process_kernel_time": 0.269717, "process_mem_max_rss": "150928", "process_out_blocks": "2688", "process_user_time": 3.380369}
+[0m07:44:24.074526 [debug] [MainThread]: Command `dbt parse` succeeded at 07:44:24.074438 after 2.10 seconds
+[0m07:44:24.074920 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x77ef46f53690>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x77ef458375b0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x77ef47bf9640>]}
+[0m07:44:24.075325 [debug] [MainThread]: Flushing usage events
+[0m07:44:26.302894 [debug] [MainThread]: An error was encountered while trying to flush usage events
+[0m07:44:28.389691 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7e2f853abb60>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7e2f8722b110>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7e2f83c67890>]}
+
+
+============================== 07:44:28.396038 | c72b883e-5ac5-4590-ae9f-e32532f61b0d ==============================
+[0m07:44:28.396038 [info ] [MainThread]: Running with dbt=1.12.6
+[0m07:44:28.396457 [debug] [MainThread]: running dbt with arguments {'hints_enabled': 'True', 'introspect': 'True', 'use_colors': 'True', 'maximum_seed_size_mib': '1', 'use_experimental_parser': 'False', 'log_path': '/opt/data/poc-iac/dbt/logs', 'indirect_selection': 'eager', 'profiles_dir': '/opt/data/profiles/cask/home/.dbt', 'write_json': 'True', 'invocation_command': 'dbt ls --no-partial-parse', 'partial_parse': 'False', 'static_parser': 'True', 'version_check': 'True', 'log_format': 'default', 'empty': 'None', 'quiet': 'False', 'printer_width': '80', 'target_path': 'None', 'send_anonymous_usage_stats': 'True', 'no_print': 'None', 'fail_fast': 'False', 'warn_error_options': 'WarnErrorOptionsV2(error=[], warn=[], silence=[])', 'log_cache_events': 'False', 'cache_selected_only': 'False', 'warn_error': 'None', 'debug': 'False'}
+[0m07:44:28.565749 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'project_id', 'label': 'c72b883e-5ac5-4590-ae9f-e32532f61b0d', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7e2f839d5810>]}
+[0m07:44:28.629576 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'adapter_info', 'label': 'c72b883e-5ac5-4590-ae9f-e32532f61b0d', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7e2f84fa79b0>]}
+[0m07:44:28.630398 [info ] [MainThread]: Registered adapter: trino=1.11.0
+[0m07:44:28.752960 [debug] [MainThread]: checksum: f8fbfb52f22f5a50a5e7ab9a361a0bbfb599233933065a1a3a5dfd0c1185eacb, vars: {}, profile: lms_poc, target: dev, version: 1.12.6
+[0m07:44:28.753544 [debug] [MainThread]: Partial parsing not enabled
+[0m07:44:29.894751 [warn ] [MainThread]: [[33mWARNING[0m][MissingArgumentsPropertyInGenericTestDeprecation]: Deprecated
+functionality
+Found top-level arguments to test `accepted_values` defined on 'dirty_data' in
+package 'lms_poc' (seeds/properties.yml). Arguments to generic tests should be
+nested under the `arguments` property.
+[0m07:44:29.895252 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'deprecation', 'label': 'c72b883e-5ac5-4590-ae9f-e32532f61b0d', 'property_': 'warn', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7e2f83436250>]}
+[0m07:44:30.289473 [warn ] [MainThread]: [[33mWARNING[0m]: Configuration paths exist in your dbt_project.yml file which do not apply to any resources.
+There are 1 unused configuration paths:
+- models.lms_poc.gold
+[0m07:44:30.292359 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'load_project', 'label': 'c72b883e-5ac5-4590-ae9f-e32532f61b0d', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7e2f8358b980>]}
+[0m07:44:30.378562 [debug] [MainThread]: Wrote artifact WritableManifest to /opt/data/poc-iac/dbt/target/manifest.json
+[0m07:44:30.380284 [debug] [MainThread]: Wrote artifact SemanticManifest to /opt/data/poc-iac/dbt/target/semantic_manifest.json
+[0m07:44:30.389250 [debug] [MainThread]: Wrote artifact OsiDocument to /opt/data/poc-iac/dbt/target/osi_document.json
+[0m07:44:30.400794 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'resource_counts', 'label': 'c72b883e-5ac5-4590-ae9f-e32532f61b0d', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7e2f82a68e50>]}
+[0m07:44:30.401190 [info ] [MainThread]: Found 10 models, 2 seeds, 1 operation, 26 data tests, 3 sources, 515 macros
+[0m07:44:30.401472 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'runnable_timing', 'label': 'c72b883e-5ac5-4590-ae9f-e32532f61b0d', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7e2f82499d90>]}
+[0m07:44:30.402328 [info ] [MainThread]: lms_poc.silver.dim_borrower
+[0m07:44:30.402610 [info ] [MainThread]: lms_poc.silver.loan
+[0m07:44:30.402819 [info ] [MainThread]: lms_poc.silver.loan_event
+[0m07:44:30.403023 [info ] [MainThread]: lms_poc.quarantine
+[0m07:44:30.403260 [info ] [MainThread]: lms_poc.silver.quarantine.quarantine_loan_amount_positive
+[0m07:44:30.403453 [info ] [MainThread]: lms_poc.silver.quarantine.quarantine_loan_borrower_relationship
+[0m07:44:30.403633 [info ] [MainThread]: lms_poc.silver.quarantine.quarantine_loan_currency_accepted
+[0m07:44:30.403809 [info ] [MainThread]: lms_poc.silver.quarantine.quarantine_loan_id_not_null
+[0m07:44:30.404021 [info ] [MainThread]: lms_poc.silver.quarantine.quarantine_loan_origination_date_valid
+[0m07:44:30.404241 [info ] [MainThread]: lms_poc.silver.stg_loan
+[0m07:44:30.404469 [info ] [MainThread]: lms_poc.borrowers
+[0m07:44:30.404652 [info ] [MainThread]: lms_poc.dirty_data
+[0m07:44:30.404830 [info ] [MainThread]: source:lms_poc.bronze.borrower
+[0m07:44:30.405030 [info ] [MainThread]: source:lms_poc.bronze.loan
+[0m07:44:30.405234 [info ] [MainThread]: source:lms_poc.bronze.loan_event
+[0m07:44:30.405412 [info ] [MainThread]: lms_poc.accepted_values_dirty_data_currency__True__USD__EUR__GBP__JPY__CAD__AUD
+[0m07:44:30.405582 [info ] [MainThread]: lms_poc.accepted_values_loan_currency__True__USD__EUR__GBP__JPY__CAD__AUD
+[0m07:44:30.405751 [info ] [MainThread]: lms_poc.not_null_borrowers_full_name
+[0m07:44:30.405932 [info ] [MainThread]: lms_poc.not_null_borrowers_id
+[0m07:44:30.406102 [info ] [MainThread]: lms_poc.not_null_dim_borrower_id
+[0m07:44:30.406286 [info ] [MainThread]: lms_poc.not_null_dirty_data_id
+[0m07:44:30.406451 [info ] [MainThread]: lms_poc.not_null_loan_borrower_id
+[0m07:44:30.406616 [info ] [MainThread]: lms_poc.not_null_loan_currency
+[0m07:44:30.406778 [info ] [MainThread]: lms_poc.not_null_loan_event_event_type
+[0m07:44:30.406953 [info ] [MainThread]: lms_poc.not_null_loan_event_id
+[0m07:44:30.407116 [info ] [MainThread]: lms_poc.not_null_loan_event_loan_id
+[0m07:44:30.407292 [info ] [MainThread]: lms_poc.not_null_loan_event_occurred_at
+[0m07:44:30.407452 [info ] [MainThread]: lms_poc.not_null_loan_id
+[0m07:44:30.407609 [info ] [MainThread]: lms_poc.not_null_loan_origination_date
+[0m07:44:30.407764 [info ] [MainThread]: lms_poc.positive_value_dirty_data_amount
+[0m07:44:30.407928 [info ] [MainThread]: lms_poc.positive_value_loan_amount
+[0m07:44:30.408087 [info ] [MainThread]: lms_poc.relationships_dirty_data_borrower_id__id__ref_dim_borrower_
+[0m07:44:30.408264 [info ] [MainThread]: lms_poc.relationships_loan_borrower_id__id__ref_dim_borrower_
+[0m07:44:30.408426 [info ] [MainThread]: lms_poc.relationships_loan_event_loan_id__id__ref_loan_
+[0m07:44:30.408580 [info ] [MainThread]: lms_poc.unique_borrowers_id
+[0m07:44:30.408740 [info ] [MainThread]: lms_poc.unique_dim_borrower_id
+[0m07:44:30.408911 [info ] [MainThread]: lms_poc.unique_dirty_data_id
+[0m07:44:30.409072 [info ] [MainThread]: lms_poc.unique_loan_event_id
+[0m07:44:30.409246 [info ] [MainThread]: lms_poc.unique_loan_id
+[0m07:44:30.409451 [info ] [MainThread]: lms_poc.valid_date_dirty_data_origination_date
+[0m07:44:30.409626 [info ] [MainThread]: lms_poc.valid_date_loan_origination_date
+[0m07:44:30.409986 [warn ] [MainThread]: [[33mWARNING[0m][DeprecationsSummary]: Deprecated functionality
+Summary of encountered deprecations:
+- MissingArgumentsPropertyInGenericTestDeprecation: 5 occurrences
+To see all deprecation instances instead of just the first occurrence of each,
+run command again with the `--show-all-deprecations` flag. You may also need to
+run with `--no-partial-parse` as some deprecations are only encountered during
+parsing.
+[0m07:44:30.410542 [debug] [MainThread]: Resource report: {"command_name": "list", "command_success": true, "command_wall_clock_time": 2.0933907, "process_in_blocks": "64", "process_kernel_time": 0.285213, "process_mem_max_rss": "151292", "process_out_blocks": "2768", "process_user_time": 3.413508}
+[0m07:44:30.410894 [debug] [MainThread]: Command `dbt ls` succeeded at 07:44:30.410824 after 2.09 seconds
+[0m07:44:30.411179 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7e2f8256e750>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7e2f825bc470>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7e2f825bc3c0>]}
+[0m07:44:30.411431 [debug] [MainThread]: Flushing usage events
+[0m07:44:31.522976 [debug] [MainThread]: An error was encountered while trying to flush usage events
+[0m07:46:25.298109 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7d67a8aabb60>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7d67aa8aafd0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7d67a7173890>]}
+
+
+============================== 07:46:25.304196 | 69b7adab-c272-4226-9ffc-12b988867245 ==============================
+[0m07:46:25.304196 [info ] [MainThread]: Running with dbt=1.12.6
+[0m07:46:25.304590 [debug] [MainThread]: running dbt with arguments {'no_print': 'None', 'printer_width': '80', 'debug': 'False', 'fail_fast': 'False', 'warn_error': 'None', 'empty': 'False', 'log_format': 'default', 'introspect': 'True', 'send_anonymous_usage_stats': 'True', 'maximum_seed_size_mib': '1', 'static_parser': 'True', 'use_colors': 'True', 'indirect_selection': 'eager', 'quiet': 'False', 'cache_selected_only': 'False', 'hints_enabled': 'True', 'log_path': '/opt/data/poc-iac/dbt/logs', 'profiles_dir': '/opt/data/profiles/cask/home/.dbt', 'log_cache_events': 'False', 'warn_error_options': 'WarnErrorOptionsV2(error=[], warn=[], silence=[])', 'invocation_command': 'dbt compile --no-partial-parse', 'use_experimental_parser': 'False', 'target_path': 'None', 'partial_parse': 'False', 'write_json': 'True', 'version_check': 'True'}
+[0m07:46:25.469000 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'project_id', 'label': '69b7adab-c272-4226-9ffc-12b988867245', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7d67a70d5810>]}
+[0m07:46:25.538075 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'adapter_info', 'label': '69b7adab-c272-4226-9ffc-12b988867245', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7d67a86a39b0>]}
+[0m07:46:25.538780 [info ] [MainThread]: Registered adapter: trino=1.11.0
+[0m07:46:25.668115 [debug] [MainThread]: checksum: f8fbfb52f22f5a50a5e7ab9a361a0bbfb599233933065a1a3a5dfd0c1185eacb, vars: {}, profile: lms_poc, target: dev, version: 1.12.6
+[0m07:46:25.668770 [debug] [MainThread]: Partial parsing not enabled
+[0m07:46:26.795682 [warn ] [MainThread]: [[33mWARNING[0m][MissingArgumentsPropertyInGenericTestDeprecation]: Deprecated
+functionality
+Found top-level arguments to test `accepted_values` defined on 'dirty_data' in
+package 'lms_poc' (seeds/properties.yml). Arguments to generic tests should be
+nested under the `arguments` property.
+[0m07:46:26.796115 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'deprecation', 'label': '69b7adab-c272-4226-9ffc-12b988867245', 'property_': 'warn', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7d67a6b2e250>]}
+[0m07:46:27.179994 [warn ] [MainThread]: [[33mWARNING[0m]: Configuration paths exist in your dbt_project.yml file which do not apply to any resources.
+There are 1 unused configuration paths:
+- models.lms_poc.gold
+[0m07:46:27.182703 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'load_project', 'label': '69b7adab-c272-4226-9ffc-12b988867245', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7d67a6c87980>]}
+[0m07:46:27.273868 [debug] [MainThread]: Wrote artifact WritableManifest to /opt/data/poc-iac/dbt/target/manifest.json
+[0m07:46:27.275758 [debug] [MainThread]: Wrote artifact SemanticManifest to /opt/data/poc-iac/dbt/target/semantic_manifest.json
+[0m07:46:27.286198 [debug] [MainThread]: Wrote artifact OsiDocument to /opt/data/poc-iac/dbt/target/osi_document.json
+[0m07:46:27.298318 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'resource_counts', 'label': '69b7adab-c272-4226-9ffc-12b988867245', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7d67a5c6cad0>]}
+[0m07:46:27.298716 [info ] [MainThread]: Found 10 models, 2 seeds, 1 operation, 26 data tests, 3 sources, 515 macros
+[0m07:46:27.298984 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'runnable_timing', 'label': '69b7adab-c272-4226-9ffc-12b988867245', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7d67a5b95cc0>]}
+[0m07:46:27.301035 [info ] [MainThread]: 
+[0m07:46:27.301356 [info ] [MainThread]: Concurrency: 1 threads (target='dev')
+[0m07:46:27.301584 [info ] [MainThread]: 
+[0m07:46:27.301979 [debug] [MainThread]: Acquiring new trino connection 'master'
+[0m07:46:27.305414 [debug] [ThreadPool]: Acquiring new trino connection 'list_iceberg_lakehouse'
+[0m07:46:27.343612 [debug] [ThreadPool]: Using trino connection "list_iceberg_lakehouse"
+[0m07:46:27.343965 [debug] [ThreadPool]: On list_iceberg_lakehouse: /* {"app": "dbt", "dbt_version": "1.12.6", "profile_name": "lms_poc", "target_name": "dev", "connection_name": "list_iceberg_lakehouse"} */
+select
+      t.table_catalog as database,
+      t.table_name as name,
+      t.table_schema as schema,
+      case when mv.name is not null then 'materialized_view'
+           when t.table_type = 'BASE TABLE' then 'table'
+           when t.table_type = 'VIEW' then 'view'
+           else t.table_type
+      end as table_type
+    from "iceberg".INFORMATION_SCHEMA.tables t
+    left join (
+            select * from system.metadata.materialized_views
+            where catalog_name = 'iceberg'
+              and schema_name = 'lakehouse') mv
+          on mv.catalog_name = t.table_catalog and mv.schema_name = t.table_schema and mv.name = t.table_name
+    where t.table_schema = 'lakehouse'
+[0m07:46:27.344210 [debug] [ThreadPool]: Opening a new connection, currently in state init
+[0m07:46:27.344402 [warn ] [ThreadPool]: [[33mWARNING[0m]: SSL certificate validation is disabled by default. It is legacy behavior which will be changed in future releases. It is strongly advised to enable `require_certificate_validation` flag or explicitly set `cert` configuration to `True` for security reasons. You may receive an error after that if your SSL setup is incorrect.
+You may opt into the new behavior sooner by setting `flags.require_certificate_validation` to `True` in `dbt_project.yml`.
+Visit https://docs.getdbt.com/reference/global-configs/behavior-changes for more information.
+[0m07:46:27.344765 [debug] [ThreadPool]: Sending event: {'category': 'dbt', 'action': 'BehaviorChangeEvent', 'label': '69b7adab-c272-4226-9ffc-12b988867245', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7d67a5c6be90>]}
+[0m07:46:27.862855 [debug] [ThreadPool]: On list_iceberg_lakehouse: ROLLBACK
+[0m07:46:27.863246 [debug] [ThreadPool]: On list_iceberg_lakehouse: Close
+[0m07:46:27.863735 [debug] [ThreadPool]: Re-using an available connection from the pool (formerly list_iceberg_lakehouse, now list_iceberg_bronze)
+[0m07:46:27.866529 [debug] [ThreadPool]: Using trino connection "list_iceberg_bronze"
+[0m07:46:27.866817 [debug] [ThreadPool]: On list_iceberg_bronze: /* {"app": "dbt", "dbt_version": "1.12.6", "profile_name": "lms_poc", "target_name": "dev", "connection_name": "list_iceberg_bronze"} */
+select
+      t.table_catalog as database,
+      t.table_name as name,
+      t.table_schema as schema,
+      case when mv.name is not null then 'materialized_view'
+           when t.table_type = 'BASE TABLE' then 'table'
+           when t.table_type = 'VIEW' then 'view'
+           else t.table_type
+      end as table_type
+    from "iceberg".INFORMATION_SCHEMA.tables t
+    left join (
+            select * from system.metadata.materialized_views
+            where catalog_name = 'iceberg'
+              and schema_name = 'bronze') mv
+          on mv.catalog_name = t.table_catalog and mv.schema_name = t.table_schema and mv.name = t.table_name
+    where t.table_schema = 'bronze'
+[0m07:46:27.867039 [debug] [ThreadPool]: Opening a new connection, currently in state closed
+[0m07:46:28.475560 [debug] [ThreadPool]: On list_iceberg_bronze: ROLLBACK
+[0m07:46:28.476021 [debug] [ThreadPool]: On list_iceberg_bronze: Close
+[0m07:46:28.476585 [debug] [ThreadPool]: Re-using an available connection from the pool (formerly list_iceberg_bronze, now list_iceberg_silver)
+[0m07:46:28.479317 [debug] [ThreadPool]: Using trino connection "list_iceberg_silver"
+[0m07:46:28.479650 [debug] [ThreadPool]: On list_iceberg_silver: /* {"app": "dbt", "dbt_version": "1.12.6", "profile_name": "lms_poc", "target_name": "dev", "connection_name": "list_iceberg_silver"} */
+select
+      t.table_catalog as database,
+      t.table_name as name,
+      t.table_schema as schema,
+      case when mv.name is not null then 'materialized_view'
+           when t.table_type = 'BASE TABLE' then 'table'
+           when t.table_type = 'VIEW' then 'view'
+           else t.table_type
+      end as table_type
+    from "iceberg".INFORMATION_SCHEMA.tables t
+    left join (
+            select * from system.metadata.materialized_views
+            where catalog_name = 'iceberg'
+              and schema_name = 'silver') mv
+          on mv.catalog_name = t.table_catalog and mv.schema_name = t.table_schema and mv.name = t.table_name
+    where t.table_schema = 'silver'
+[0m07:46:28.479892 [debug] [ThreadPool]: Opening a new connection, currently in state closed
+[0m07:46:28.898828 [debug] [ThreadPool]: On list_iceberg_silver: ROLLBACK
+[0m07:46:28.899188 [debug] [ThreadPool]: On list_iceberg_silver: Close
+[0m07:46:28.899760 [debug] [MainThread]: Connection 'master' was properly closed.
+[0m07:46:28.900008 [debug] [MainThread]: Connection 'list_iceberg_silver' was properly closed.
+[0m07:46:28.900385 [error] [MainThread]: [[31mERROR[0m]: Encountered an error:
+Database Error
+  failed to execute: HTTPConnectionPool(host='localhost', port=8080): Max retries exceeded with url: /v1/statement (Caused by NewConnectionError("HTTPConnection(host='localhost', port=8080): Failed to establish a new connection: [Errno 111] Connection refused"))
+[0m07:46:28.904520 [warn ] [MainThread]: [[33mWARNING[0m][DeprecationsSummary]: Deprecated functionality
+Summary of encountered deprecations:
+- MissingArgumentsPropertyInGenericTestDeprecation: 5 occurrences
+To see all deprecation instances instead of just the first occurrence of each,
+run command again with the `--show-all-deprecations` flag. You may also need to
+run with `--no-partial-parse` as some deprecations are only encountered during
+parsing.
+[0m07:46:28.905154 [debug] [MainThread]: Resource report: {"command_name": "compile", "command_success": false, "command_wall_clock_time": 3.6793754, "process_in_blocks": "112", "process_kernel_time": 0.295582, "process_mem_max_rss": "156120", "process_out_blocks": "2784", "process_user_time": 3.343466}
+[0m07:46:28.905539 [debug] [MainThread]: Command `dbt compile` failed at 07:46:28.905470 after 3.68 seconds
+[0m07:46:28.905905 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7d67a50f4050>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7d67a51e3b10>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7d67a51e3750>]}
+[0m07:46:28.906233 [debug] [MainThread]: Flushing usage events
+[0m07:46:30.167010 [debug] [MainThread]: An error was encountered while trying to flush usage events
+[0m07:46:32.158812 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x770b40fc3b60>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x770b42db2fd0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x770b3f863890>]}
+
+
+============================== 07:46:32.164909 | be71564a-41a9-4f40-8731-a622db1a9266 ==============================
+[0m07:46:32.164909 [info ] [MainThread]: Running with dbt=1.12.6
+[0m07:46:32.165314 [debug] [MainThread]: running dbt with arguments {'cache_selected_only': 'False', 'send_anonymous_usage_stats': 'True', 'maximum_seed_size_mib': '1', 'indirect_selection': 'eager', 'warn_error_options': 'WarnErrorOptionsV2(error=[], warn=[], silence=[])', 'use_colors': 'True', 'introspect': 'True', 'no_print': 'None', 'use_experimental_parser': 'False', 'log_cache_events': 'False', 'warn_error': 'None', 'partial_parse': 'False', 'quiet': 'False', 'static_parser': 'True', 'log_path': '/opt/data/poc-iac/dbt/logs', 'log_format': 'default', 'debug': 'False', 'invocation_command': 'dbt ls --select +loan --no-partial-parse', 'printer_width': '80', 'hints_enabled': 'True', 'profiles_dir': '/opt/data/profiles/cask/home/.dbt', 'version_check': 'True', 'empty': 'None', 'target_path': 'None', 'write_json': 'True', 'fail_fast': 'False'}
+[0m07:46:32.329767 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'project_id', 'label': 'be71564a-41a9-4f40-8731-a622db1a9266', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x770b3f5e5810>]}
+[0m07:46:32.389328 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'adapter_info', 'label': 'be71564a-41a9-4f40-8731-a622db1a9266', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x770b40bb79b0>]}
+[0m07:46:32.390019 [info ] [MainThread]: Registered adapter: trino=1.11.0
+[0m07:46:32.508741 [debug] [MainThread]: checksum: f8fbfb52f22f5a50a5e7ab9a361a0bbfb599233933065a1a3a5dfd0c1185eacb, vars: {}, profile: lms_poc, target: dev, version: 1.12.6
+[0m07:46:32.509247 [debug] [MainThread]: Partial parsing not enabled
+[0m07:46:33.839508 [warn ] [MainThread]: [[33mWARNING[0m][MissingArgumentsPropertyInGenericTestDeprecation]: Deprecated
+functionality
+Found top-level arguments to test `accepted_values` defined on 'loan' in package
+'lms_poc' (models/schema.yml). Arguments to generic tests should be nested under
+the `arguments` property.
+[0m07:46:33.839964 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'deprecation', 'label': 'be71564a-41a9-4f40-8731-a622db1a9266', 'property_': 'warn', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x770b3ee4b850>]}
+[0m07:46:34.002836 [warn ] [MainThread]: [[33mWARNING[0m]: Configuration paths exist in your dbt_project.yml file which do not apply to any resources.
+There are 1 unused configuration paths:
+- models.lms_poc.gold
+[0m07:46:34.005576 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'load_project', 'label': 'be71564a-41a9-4f40-8731-a622db1a9266', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x770b3eee5310>]}
+[0m07:46:34.092034 [debug] [MainThread]: Wrote artifact WritableManifest to /opt/data/poc-iac/dbt/target/manifest.json
+[0m07:46:34.093735 [debug] [MainThread]: Wrote artifact SemanticManifest to /opt/data/poc-iac/dbt/target/semantic_manifest.json
+[0m07:46:34.102724 [debug] [MainThread]: Wrote artifact OsiDocument to /opt/data/poc-iac/dbt/target/osi_document.json
+[0m07:46:34.113584 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'resource_counts', 'label': 'be71564a-41a9-4f40-8731-a622db1a9266', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x770b3e147bd0>]}
+[0m07:46:34.113968 [info ] [MainThread]: Found 10 models, 2 seeds, 1 operation, 26 data tests, 3 sources, 515 macros
+[0m07:46:34.114246 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'runnable_timing', 'label': 'be71564a-41a9-4f40-8731-a622db1a9266', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x770b3e095d90>]}
+[0m07:46:34.114973 [info ] [MainThread]: lms_poc.silver.dim_borrower
+[0m07:46:34.115259 [info ] [MainThread]: lms_poc.silver.loan
+[0m07:46:34.115449 [info ] [MainThread]: lms_poc.quarantine
+[0m07:46:34.115618 [info ] [MainThread]: lms_poc.silver.quarantine.quarantine_loan_amount_positive
+[0m07:46:34.115796 [info ] [MainThread]: lms_poc.silver.quarantine.quarantine_loan_borrower_relationship
+[0m07:46:34.115959 [info ] [MainThread]: lms_poc.silver.quarantine.quarantine_loan_currency_accepted
+[0m07:46:34.116115 [info ] [MainThread]: lms_poc.silver.quarantine.quarantine_loan_id_not_null
+[0m07:46:34.116359 [info ] [MainThread]: lms_poc.silver.quarantine.quarantine_loan_origination_date_valid
+[0m07:46:34.116532 [info ] [MainThread]: lms_poc.silver.stg_loan
+[0m07:46:34.116709 [info ] [MainThread]: lms_poc.borrowers
+[0m07:46:34.116874 [info ] [MainThread]: lms_poc.dirty_data
+[0m07:46:34.117039 [info ] [MainThread]: source:lms_poc.bronze.borrower
+[0m07:46:34.117265 [info ] [MainThread]: source:lms_poc.bronze.loan
+[0m07:46:34.117443 [info ] [MainThread]: lms_poc.accepted_values_dirty_data_currency__True__USD__EUR__GBP__JPY__CAD__AUD
+[0m07:46:34.117604 [info ] [MainThread]: lms_poc.accepted_values_loan_currency__True__USD__EUR__GBP__JPY__CAD__AUD
+[0m07:46:34.117769 [info ] [MainThread]: lms_poc.not_null_borrowers_full_name
+[0m07:46:34.117919 [info ] [MainThread]: lms_poc.not_null_borrowers_id
+[0m07:46:34.118068 [info ] [MainThread]: lms_poc.not_null_dim_borrower_id
+[0m07:46:34.118304 [info ] [MainThread]: lms_poc.not_null_dirty_data_id
+[0m07:46:34.118477 [info ] [MainThread]: lms_poc.not_null_loan_borrower_id
+[0m07:46:34.118640 [info ] [MainThread]: lms_poc.not_null_loan_currency
+[0m07:46:34.118812 [info ] [MainThread]: lms_poc.not_null_loan_id
+[0m07:46:34.118969 [info ] [MainThread]: lms_poc.not_null_loan_origination_date
+[0m07:46:34.119124 [info ] [MainThread]: lms_poc.positive_value_dirty_data_amount
+[0m07:46:34.119308 [info ] [MainThread]: lms_poc.positive_value_loan_amount
+[0m07:46:34.119467 [info ] [MainThread]: lms_poc.relationships_dirty_data_borrower_id__id__ref_dim_borrower_
+[0m07:46:34.119625 [info ] [MainThread]: lms_poc.relationships_loan_borrower_id__id__ref_dim_borrower_
+[0m07:46:34.119793 [info ] [MainThread]: lms_poc.relationships_loan_event_loan_id__id__ref_loan_
+[0m07:46:34.119952 [info ] [MainThread]: lms_poc.unique_borrowers_id
+[0m07:46:34.120106 [info ] [MainThread]: lms_poc.unique_dim_borrower_id
+[0m07:46:34.120285 [info ] [MainThread]: lms_poc.unique_dirty_data_id
+[0m07:46:34.120442 [info ] [MainThread]: lms_poc.unique_loan_id
+[0m07:46:34.120596 [info ] [MainThread]: lms_poc.valid_date_dirty_data_origination_date
+[0m07:46:34.120761 [info ] [MainThread]: lms_poc.valid_date_loan_origination_date
+[0m07:46:34.121090 [warn ] [MainThread]: [[33mWARNING[0m][DeprecationsSummary]: Deprecated functionality
+Summary of encountered deprecations:
+- MissingArgumentsPropertyInGenericTestDeprecation: 5 occurrences
+To see all deprecation instances instead of just the first occurrence of each,
+run command again with the `--show-all-deprecations` flag. You may also need to
+run with `--no-partial-parse` as some deprecations are only encountered during
+parsing.
+[0m07:46:34.121637 [debug] [MainThread]: Resource report: {"command_name": "list", "command_success": true, "command_wall_clock_time": 2.029645, "process_in_blocks": "0", "process_kernel_time": 0.263955, "process_mem_max_rss": "150960", "process_out_blocks": "2768", "process_user_time": 3.270503}
+[0m07:46:34.121983 [debug] [MainThread]: Command `dbt ls` succeeded at 07:46:34.121925 after 2.03 seconds
+[0m07:46:34.122261 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x770b3e196810>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x770b40481650>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x770b3e199ff0>]}
+[0m07:46:34.122507 [debug] [MainThread]: Flushing usage events
+[0m07:46:35.232982 [debug] [MainThread]: An error was encountered while trying to flush usage events
+[0m07:46:37.179121 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7884903a3b60>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7884920e2fd0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x78848eb8b890>]}
+
+
+============================== 07:46:37.185317 | f882d814-84f8-4e3d-b186-f82a4d9dbcf2 ==============================
+[0m07:46:37.185317 [info ] [MainThread]: Running with dbt=1.12.6
+[0m07:46:37.185730 [debug] [MainThread]: running dbt with arguments {'log_format': 'default', 'no_print': 'None', 'fail_fast': 'False', 'introspect': 'True', 'empty': 'None', 'printer_width': '80', 'indirect_selection': 'eager', 'debug': 'False', 'use_experimental_parser': 'False', 'log_cache_events': 'False', 'quiet': 'False', 'log_path': '/opt/data/poc-iac/dbt/logs', 'warn_error_options': 'WarnErrorOptionsV2(error=[], warn=[], silence=[])', 'cache_selected_only': 'False', 'use_colors': 'True', 'static_parser': 'True', 'partial_parse': 'False', 'version_check': 'True', 'invocation_command': 'dbt ls --select quarantine+ --no-partial-parse', 'warn_error': 'None', 'send_anonymous_usage_stats': 'True', 'hints_enabled': 'True', 'target_path': 'None', 'maximum_seed_size_mib': '1', 'profiles_dir': '/opt/data/profiles/cask/home/.dbt', 'write_json': 'True'}
+[0m07:46:37.350244 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'project_id', 'label': 'f882d814-84f8-4e3d-b186-f82a4d9dbcf2', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x78848e9cd810>]}
+[0m07:46:37.409960 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'adapter_info', 'label': 'f882d814-84f8-4e3d-b186-f82a4d9dbcf2', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x78848ff9b9b0>]}
+[0m07:46:37.410705 [info ] [MainThread]: Registered adapter: trino=1.11.0
+[0m07:46:37.534702 [debug] [MainThread]: checksum: f8fbfb52f22f5a50a5e7ab9a361a0bbfb599233933065a1a3a5dfd0c1185eacb, vars: {}, profile: lms_poc, target: dev, version: 1.12.6
+[0m07:46:37.535198 [debug] [MainThread]: Partial parsing not enabled
+[0m07:46:38.851366 [warn ] [MainThread]: [[33mWARNING[0m][MissingArgumentsPropertyInGenericTestDeprecation]: Deprecated
+functionality
+Found top-level arguments to test `accepted_values` defined on 'loan' in package
+'lms_poc' (models/schema.yml). Arguments to generic tests should be nested under
+the `arguments` property.
+[0m07:46:38.851817 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'deprecation', 'label': 'f882d814-84f8-4e3d-b186-f82a4d9dbcf2', 'property_': 'warn', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x78848e3f7850>]}
+[0m07:46:39.012958 [warn ] [MainThread]: [[33mWARNING[0m]: Configuration paths exist in your dbt_project.yml file which do not apply to any resources.
+There are 1 unused configuration paths:
+- models.lms_poc.gold
+[0m07:46:39.015623 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'load_project', 'label': 'f882d814-84f8-4e3d-b186-f82a4d9dbcf2', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x78848e295310>]}
+[0m07:46:39.100814 [debug] [MainThread]: Wrote artifact WritableManifest to /opt/data/poc-iac/dbt/target/manifest.json
+[0m07:46:39.102375 [debug] [MainThread]: Wrote artifact SemanticManifest to /opt/data/poc-iac/dbt/target/semantic_manifest.json
+[0m07:46:39.111120 [debug] [MainThread]: Wrote artifact OsiDocument to /opt/data/poc-iac/dbt/target/osi_document.json
+[0m07:46:39.121895 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'resource_counts', 'label': 'f882d814-84f8-4e3d-b186-f82a4d9dbcf2', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x78848d6f7bd0>]}
+[0m07:46:39.122273 [info ] [MainThread]: Found 10 models, 2 seeds, 1 operation, 26 data tests, 3 sources, 515 macros
+[0m07:46:39.122527 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'runnable_timing', 'label': 'f882d814-84f8-4e3d-b186-f82a4d9dbcf2', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x78848d445d90>]}
+[0m07:46:39.123241 [info ] [MainThread]: lms_poc.silver.loan
+[0m07:46:39.123502 [info ] [MainThread]: lms_poc.quarantine
+[0m07:46:39.123707 [info ] [MainThread]: lms_poc.silver.quarantine.quarantine_loan_amount_positive
+[0m07:46:39.123890 [info ] [MainThread]: lms_poc.silver.quarantine.quarantine_loan_borrower_relationship
+[0m07:46:39.124066 [info ] [MainThread]: lms_poc.silver.quarantine.quarantine_loan_currency_accepted
+[0m07:46:39.124262 [info ] [MainThread]: lms_poc.silver.quarantine.quarantine_loan_id_not_null
+[0m07:46:39.124434 [info ] [MainThread]: lms_poc.silver.quarantine.quarantine_loan_origination_date_valid
+[0m07:46:39.124598 [info ] [MainThread]: lms_poc.accepted_values_loan_currency__True__USD__EUR__GBP__JPY__CAD__AUD
+[0m07:46:39.124776 [info ] [MainThread]: lms_poc.not_null_loan_borrower_id
+[0m07:46:39.124940 [info ] [MainThread]: lms_poc.not_null_loan_currency
+[0m07:46:39.125100 [info ] [MainThread]: lms_poc.not_null_loan_id
+[0m07:46:39.125282 [info ] [MainThread]: lms_poc.not_null_loan_origination_date
+[0m07:46:39.125445 [info ] [MainThread]: lms_poc.positive_value_loan_amount
+[0m07:46:39.125604 [info ] [MainThread]: lms_poc.relationships_loan_borrower_id__id__ref_dim_borrower_
+[0m07:46:39.125771 [info ] [MainThread]: lms_poc.relationships_loan_event_loan_id__id__ref_loan_
+[0m07:46:39.125931 [info ] [MainThread]: lms_poc.unique_loan_id
+[0m07:46:39.126086 [info ] [MainThread]: lms_poc.valid_date_loan_origination_date
+[0m07:46:39.126439 [warn ] [MainThread]: [[33mWARNING[0m][DeprecationsSummary]: Deprecated functionality
+Summary of encountered deprecations:
+- MissingArgumentsPropertyInGenericTestDeprecation: 5 occurrences
+To see all deprecation instances instead of just the first occurrence of each,
+run command again with the `--show-all-deprecations` flag. You may also need to
+run with `--no-partial-parse` as some deprecations are only encountered during
+parsing.
+[0m07:46:39.126947 [debug] [MainThread]: Resource report: {"command_name": "list", "command_success": true, "command_wall_clock_time": 2.0147243, "process_in_blocks": "0", "process_kernel_time": 0.265085, "process_mem_max_rss": "150804", "process_out_blocks": "2760", "process_user_time": 3.252927}
+[0m07:46:39.127294 [debug] [MainThread]: Command `dbt ls` succeeded at 07:46:39.127234 after 2.02 seconds
+[0m07:46:39.127550 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x78848d542690>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x78848f869650>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x78848d551ff0>]}
+[0m07:46:39.127809 [debug] [MainThread]: Flushing usage events
+[0m07:46:40.240632 [debug] [MainThread]: An error was encountered while trying to flush usage events

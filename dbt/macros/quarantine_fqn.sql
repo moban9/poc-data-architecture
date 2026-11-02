@@ -1,0 +1,7 @@
+-- SUPERSEDED — removed to avoid two competing sources of the quarantine FQN.
+-- The quarantine relation is referenced via ref('quarantine') in the per-rule
+-- post_hooks (macros/quarantine_insert.sql) and the on-run-end hook
+-- (macros/quarantine_failed_tests.sql). The model (models/quarantine.sql) pins
+-- the physical location: schema `quarantine_lms`, alias `quarantine_lms` in the
+-- `lakehouse` catalog -> lakehouse.quarantine_lms.quarantine_lms (doc 05 §5.4).
+-- This file defines no macro.

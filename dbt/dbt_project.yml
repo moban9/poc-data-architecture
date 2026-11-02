@@ -5,6 +5,12 @@ config-version: 2
 # Profile name must match an entry in profiles.yml (see profiles.yml.example).
 profile: 'lms_poc'
 
+# After every invocation (run/test/build), append any FAILING test's offending
+# rows to lakehouse.quarantine_lms (reactive backstop to the proactive per-rule
+# quarantine models). The test still fails the run — schema.yml is the assert
+# gate that blocks downstream.
+on-run-end: "{{ quarantine_failed_tests(results) }}"
+
 model-paths: ["models"]
 analysis-paths: ["analyses"]
 seed-paths: ["seeds"]

@@ -11,6 +11,7 @@ lms_poc:
       port: 8080
       user: admin
       http_scheme: http
-      catalog: iceberg        # TODO(Meridian): match catalog name in trino/etc/catalog/iceberg.properties
+      catalog: lakehouse       # Polaris catalog per doc 05 / Meridian naming ("one catalog lakehouse").
+                               #   Rename compose trino/etc/catalog/iceberg.properties -> lakehouse.properties
       schema: bronze          # default target schema for seeds / unscoped models
       threads: 1

@@ -1,5 +1,7 @@
 version: 2
 
+# ── Seeds ─────────────────────────────────────────────────────────────────
+
 # Failure-scenario seed: 5 rows, each engineered to violate exactly one
 # data-quality rule on the loan model. `dbt seed` then
 # `dbt test --select dirty_data` should produce exactly 5 failures.
@@ -43,3 +45,23 @@ seeds:
           - relationships:
               to: ref('dim_borrower')
               field: id
+
+  # Valid borrowers backing dim_borrower for the POC demo (B-1001..B-1004).
+  # Lets the relationships(borrower_id -> dim_borrower.id) rule flag only
+  # B-9999 (the orphan) rather than every row.
+  - name: borrowers
+    description: >
+      Valid borrowers backing dim_borrower. B-1001..B-1004 are the legitimate
+      parents for dirty_data rows 1-4; B-9999 (row 5) is deliberately absent.
+    config:
+      column_types:
+        id: varchar
+        full_name: varchar
+    columns:
+      - name: id
+        tests:
+          - not_null
+          - unique
+      - name: full_name
+        tests:
+          - not_null

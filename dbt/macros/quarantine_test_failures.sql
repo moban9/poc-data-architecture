@@ -1,0 +1,3 @@
+-- SUPERSEDED — the on-run-end test hook is macros/quarantine_failed_tests.sql
+-- (wired in dbt_project.yml `on-run-end`). Kept only as a pointer; this file
+-- defines no macro.

@@ -1,0 +1,56 @@
+{
+    "path_count": 157,
+    "parsed_path_count": 157,
+    "static_analysis_path_count": 10,
+    "static_analysis_parsed_path_count": 5,
+    "is_partial_parse_enabled": false,
+    "is_static_analysis_enabled": true,
+    "read_files_elapsed": 0.016679052001563832,
+    "load_macros_elapsed": 0.4228031280217692,
+    "parse_project_elapsed": 1.0337149370170664,
+    "patch_sources_elapsed": 0.019277975981822237,
+    "process_manifest_elapsed": 0.023041061009280384,
+    "load_all_elapsed": 1.5649878260155674,
+    "projects": [
+        {
+            "project_name": "lms_poc",
+            "elapsed": 1.0314331359986681,
+            "parsers": [
+                {
+                    "parser": "model",
+                    "elapsed": 0.2619424359872937,
+                    "parsed_path_count": 10
+                },
+                {
+                    "parser": "seed",
+                    "elapsed": 0.15676381200319156,
+                    "parsed_path_count": 2
+                },
+                {
+                    "parser": "test",
+                    "elapsed": 0.47542430300381966,
+                    "parsed_path_count": 3
+                }
+            ],
+            "parsed_path_count": 15
+        },
+        {
+            "project_name": "dbt_trino",
+            "elapsed": 0.0008522979915142059,
+            "parsers": [],
+            "parsed_path_count": 0
+        },
+        {
+            "project_name": "dbt",
+            "elapsed": 0.001283981982851401,
+            "parsers": [
+                {
+                    "parser": "doc",
+                    "elapsed": 0.00016802200116217136,
+                    "parsed_path_count": 1
+                }
+            ],
+            "parsed_path_count": 1
+        }
+    ]
+}

@@ -183,8 +183,7 @@ resource "google_compute_backend_service" "app" {
   security_policy = one(google_compute_security_policy.armor[*].id)
 
   backend {
-    group     = google_compute_instance_group.app.self_link
-    port_name = "https"
+    group = google_compute_instance_group.app.self_link
   }
 }
 

@@ -1,0 +1,41 @@
+=== hostname ===
+a3b046084534
+=== date -u ===
+Mon Nov  2 07:12:55 UTC 2026
+=== uname -a ===
+Linux a3b046084534 6.8.0-147-generic #147-Ubuntu SMP PREEMPT_DYNAMIC Thu Sep 24 11:33:16 UTC 2026 x86_64 GNU/Linux
+=== whoami ===
+hermes
+=== HOME ===
+/opt/data/profiles/cask/home
+=== which dbt ===
+NO dbt on PATH
+=== dbt --version ===
+/opt/data/profiles/cask/scripts/cask_probe.sh: line 12: dbt: command not found
+=== python -c dbt ===
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import dbt; print('dbt python module', dbt.version.__version__)
+    ^^^^^^^^^^
+ModuleNotFoundError: No module named 'dbt'
+no dbt python module
+=== which trino ===
+NO trino CLI
+=== ~/.dbt ===
+ls: cannot access '/opt/data/profiles/cask/home/.dbt': No such file or directory
+NO ~/.dbt
+=== profiles.yml ===
+cat: /opt/data/profiles/cask/home/.dbt/profiles.yml: No such file or directory
+NO profiles.yml
+=== trino :8080 /v1/info ===
+trino NOT reachable on 8080
+=== trino :8080 raw ===
+=== docker ps ===
+Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
+=== docker compose ls ===
+docker: 'compose' is not a docker command.
+See 'docker --help'
+=== netstat/ss 8080 ===
+no 8080/8181 listener
+=== env DBT/POLARIS/TRINO ===
+no relevant env vars

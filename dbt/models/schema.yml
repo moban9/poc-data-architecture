@@ -2,8 +2,13 @@ version: 2
 
 # ── Silver data-quality rules (the POC test suite) ────────────────────────
 # Built-in tests used: not_null, unique, relationships, accepted_values.
-# Custom generic tests used: positive_value (macros/positive_value.sql).
-# Rows that fail these land in lakehouse.quarantine_lms (see models/quarantine.sql).
+# Custom generic tests used: positive_value (macros/positive_value.sql),
+# valid_date (macros/valid_date.sql).
+#
+# These are the ASSERT GATE: a failing test blocks downstream (dbt test exits
+# non-zero, and the on-run-end hook appends the offending rows to
+# lakehouse.quarantine_lms). In the happy path the clean Silver models already
+# exclude bad rows (see models/silver/quarantine/*), so these tests pass.
 
 models:
   - name: loan
@@ -31,6 +36,7 @@ models:
         description: "Date the loan was originated (YYYY-MM-DD)."
         tests:
           - not_null
+          - valid_date
       - name: borrower_id
         description: "Foreign key to dim_borrower."
         tests:
