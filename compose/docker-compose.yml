@@ -44,7 +44,7 @@ services:
   # Demo control panel (FastAPI) — drives the pipeline scenarios. Served by the
   # Traefik edge layer at demo.<DOMAIN>; not published to the host.
   demo:
-    build: ./demo
+    build: ../demo
     environment:
       # Point at the real stack by service name; unreachable → simulated.
       LMS_API_URL: http://lms-api:8000
@@ -185,7 +185,7 @@ services:
       retries: 10
 
   connect:
-    image: ${CONNECT_IMAGE:-debezium/connect:2.7}
+    image: ${CONNECT_IMAGE:-debezium/connect:2.7.3.Final}
     environment:
       BOOTSTRAP_SERVERS: kafka:9092
       GROUP_ID: lms-connect
@@ -256,24 +256,6 @@ services:
     working_dir: /demo
     mem_limit: 512m
     cpus: 0.5
-
-  dagster:
-    image: ${DAGSTER_IMAGE:-ghcr.io/dagster-io/dagster:latest}
-    environment:
-      DAGSTER_HOME: /opt/dagster/dagster_home
-      DAGSTER_PG_PASSWORD: ${DAGSTER_PG_PASSWORD:-dagster}
-    ports:
-      - "3000:3000"
-    mem_limit: 1024m
-    cpus: 1.0
-    volumes:
-      # TODO(Cask/Meridian): dagster workspace with PyIceberg batch EL assets +
-      # dbt (dbt-trino) job. dbt runs in-process here, not as a separate service.
-      - ./dagster:/opt/dagster
-    depends_on:
-      - trino
-      - minio
-      - polaris
 
   # ── BI ─────────────────────────────────────────────────────────────────────
   metabase:
