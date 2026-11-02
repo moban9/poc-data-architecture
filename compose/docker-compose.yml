@@ -321,27 +321,16 @@ services:
 
 networks:
   default:
-    restart: unless-stopped
     name: lms-poc
 
 volumes:
   lms_pg_data:
-    restart: unless-stopped
   polaris_pg_data:
-    restart: unless-stopped
   minio_data:
-    restart: unless-stopped
   kafka_data:
-    restart: unless-stopped
   connect_config:
-    restart: unless-stopped
   connect_data:
-    restart: unless-stopped
   connect_logs:
-    restart: unless-stopped
   metabase_data:
-    restart: unless-stopped
   prometheus_data:
-    restart: unless-stopped
   grafana_data:
-    restart: unless-stopped
