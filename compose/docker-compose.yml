@@ -186,14 +186,13 @@ services:
       - "8083:8083"
     depends_on:
       - kafka
+    volumes:
+      - connect_config:/kafka/config
+      - connect_data:/kafka/data
+      - connect_logs:/kafka/logs
+      - ./connect-plugins:/kafka/connect/iceberg-sink
     mem_limit: 1536m
     cpus: 1.0
-    volumes:
-      # TODO(Cask): mount the Iceberg sink connector JAR + the Debezium Postgres
-      # source + sink JSON configs here; register via the Connect REST API or a
-      # startup script (scripts/register-connectors.sh).
-      - ./connect-plugins:/kafka/connect/iceberg-sink
-      - ./connect-config:/kafka/config:ro
 
   # ── Compute / transform / serve ────────────────────────────────────────────
   trino:
@@ -277,6 +276,9 @@ volumes:
   polaris_pg_data:
   minio_data:
   kafka_data:
+  connect_config:
+  connect_data:
+  connect_logs:
   metabase_data:
   prometheus_data:
   grafana_data:
