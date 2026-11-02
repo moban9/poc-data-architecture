@@ -51,6 +51,7 @@ x-plane-app-env: &plane-app-env
   DEBUG: "0"
   USE_MINIO: "1"
   GUNICORN_WORKERS: "1"
+  ENABLE_EMAIL_PASSWORD: "1"
   SECRET_KEY: ${PLANE_SECRET_KEY:-CHANGE_ME_plane_secret_key_at_least_50_chars_long_1234567890}
   DATABASE_URL: "postgresql://${PLANE_DB_USER:-plane}:${PLANE_DB_PASSWORD:-plane}@plane-db:5432/${PLANE_DB_NAME:-plane}"
   AMQP_URL: "amqp://${PLANE_MQ_USER:-plane}:${PLANE_MQ_PASSWORD:-plane}@plane-mq:5672/plane"
