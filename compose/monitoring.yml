@@ -159,7 +159,7 @@ services:
     networks: [lms-poc]
 
   plane-minio:
-    image: ${PLANE_MINIO_IMAGE:-minio/minio:latest}
+    image: ${PLANE_MINIO_IMAGE:-quay.io/minio/minio:latest}
     command: server /export --console-address ":9090"
     environment:
       <<: [*plane-minio-env]
