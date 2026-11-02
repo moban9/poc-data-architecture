@@ -17,6 +17,10 @@ scripts/      bootstrap.sh, incident-simulator.py
 Makefile      init / plan / apply / deploy / status / teardown
 ```
 
+## Docs
+- [Architecture & diagrams](docs/architecture.md) — Mermaid (full stack, data flow, network)
+- [Examples](docs/examples.md) — bring-up, scenario runs, incident simulation, cost
+
 ## Cost (1-day demo ≈ $7)
 `e2-standard-8` (8 vCPU/32 GB) $0.268/hr + 100 GB pd-balanced $4/mo. A 1-day run is
 ~2–3% of the $300 free-trial credit. Trial caps Compute Engine at 8 cores concurrent
