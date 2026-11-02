@@ -159,10 +159,11 @@ services:
     networks: [lms-poc]
 
   plane-minio:
-    image: ${PLANE_MINIO_IMAGE:-quay.io/minio/minio:latest}
-    command: server /export --console-address ":9090"
+    image: ${PLANE_MINIO_IMAGE:-adobe/s3mock:latest}
+    command: ["--server.port=9000"]
     environment:
-      <<: [*plane-minio-env]
+      initialBuckets: uploads
+      root: /export
     volumes: ["plane_minio_data:/export"]
     restart: unless-stopped
     networks: [lms-poc]
