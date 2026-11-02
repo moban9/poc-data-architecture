@@ -198,7 +198,7 @@ services:
     networks: [default]
 
   plane-web:
-    image: makeplane/plane-frontend:${PLANE_APP_RELEASE:-stable}
+    image: makeplane/plane-frontend:v1.4.3
     ports: ["3010:3000"]
     depends_on: [plane]
     restart: unless-stopped
