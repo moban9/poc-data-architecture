@@ -61,7 +61,7 @@ jobs:
       - name: deploy stack (clone + compose up over SSH)
         run: |
           set -euo pipefail
-          VM_NAME="poc-vm"          # ${var.name}-vm
+          VM_NAME="lms-poc-vm"     # ${var.name}-vm (var.name default = lms-poc)
           ZONE="asia-southeast2-a"
           SSH_FLAGS=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
           # wait for SSH to come up (startup script installs docker + envsubst)
