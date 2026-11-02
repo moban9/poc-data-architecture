@@ -94,15 +94,10 @@ services:
       # Realm + bootstrap root principal (format: <realm>,<client_id>,<client_secret>).
       polaris.realm-context.realms: ${POLARIS_REALM:-POLARIS}
       POLARIS_BOOTSTRAP_CREDENTIALS: ${POLARIS_REALM:-POLARIS},${POLARIS_CLIENT_ID:-root},${POLARIS_CLIENT_SECRET:-CHANGE_ME_polaris_root}
-      # Persist catalog/metadata to polaris-postgres (in-memory is the default).
-      polaris.persistence.type: ${POLARIS_PERSISTENCE_TYPE:-relational-jdbc}
       # Static MinIO (S3) credentials — used by Polaris and vended to Trino.
       AWS_REGION: ${MINIO_REGION:-us-east-1}
       AWS_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY:-minioadmin}
       AWS_SECRET_ACCESS_KEY: ${MINIO_SECRET_KEY:-CHANGE_ME_minio}
-      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://polaris-postgres:5432/${POLARIS_DB_NAME:-polaris}
-      QUARKUS_DATASOURCE_USERNAME: ${POLARIS_DB_USER:-polaris}
-      QUARKUS_DATASOURCE_PASSWORD: ${POLARIS_DB_PASSWORD:-polaris}
       JAVA_TOOL_OPTIONS: "-Xmx384m"
     ports:
       - "8181:8181"
