@@ -21,19 +21,6 @@ data "google_compute_image" "ubuntu" {
   project = "ubuntu-os-cloud"
 }
 
-# Enable required APIs (idempotent). Compute Engine must be on before any resource.
-resource "google_project_service" "compute" {
-  project            = var.project_id
-  service            = "compute.googleapis.com"
-  disable_on_destroy = false
-}
-
-resource "google_project_service" "iam" {
-  project            = var.project_id
-  service            = "iam.googleapis.com"
-  disable_on_destroy = false
-}
-
 # VPC, subnets, NAT, firewalls, Cloud Armor, unmanaged IG, and the external HTTPS LB.
 module "network" {
   source = "./network"
