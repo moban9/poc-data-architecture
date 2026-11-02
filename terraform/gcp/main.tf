@@ -21,7 +21,32 @@ data "google_compute_image" "ubuntu" {
   project = "ubuntu-os-cloud"
 }
 
-# The single POC node — full stack per 05 §9 (8 vCPU / 16 GB / 100 GB)
+# VPC, subnets, NAT, firewalls, Cloud Armor, unmanaged IG, and the external HTTPS LB.
+module "network" {
+  source = "./network"
+
+  region   = var.region
+  zone     = var.zone
+  vpc_name = var.vpc_name
+
+  cert_domain = var.cert_domain
+
+  vpc_cidr            = var.vpc_cidr
+  public_subnet_cidr  = var.public_subnet_cidr
+  private_subnet_cidr = var.private_subnet_cidr
+  proxy_subnet_cidr   = var.proxy_subnet_cidr
+
+  app_port          = var.app_port
+  lb_ingress_ports  = var.lb_ingress_ports
+  app_tag           = var.app_tag
+  enable_cloud_armor = var.enable_cloud_armor
+
+  # Attach the app VM to the LB's unmanaged instance group.
+  instance_self_links = [google_compute_instance.poc.self_link]
+}
+
+# The single POC node — private subnet, NO public IP. Reachable only via IAP
+# (SSH) and the external HTTPS LB.
 resource "google_compute_instance" "poc" {
   name         = "${var.name}-vm"
   machine_type = var.machine_type
@@ -36,35 +61,27 @@ resource "google_compute_instance" "poc" {
   }
 
   network_interface {
-    network = "default"
-    access_config {} # ephemeral public IP
+    subnetwork = module.network.private_subnet_self_link
+    # No access_config block -> no public IP.
   }
 
-  # Installs Docker + Compose on first boot (idempotent); stack itself is
+  # Installs Docker + Compose on first boot (idempotent); the stack itself is
   # started by `make deploy` so the compose dir can be synced first.
   metadata_startup_script = file("${path.module}/../../scripts/bootstrap.sh")
 
-  tags = [var.name]
+  tags = [var.app_tag]
 
   service_account {
     scopes = ["cloud-platform"]
   }
 }
 
-resource "google_compute_firewall" "ssh" {
-  name    = "${var.name}-ssh"
-  network = "default"
-
-  allow {
-    protocol = "tcp"
-    ports    = ["22"]
-  }
-
-  source_ranges = var.allowed_ssh_cidrs
-  target_tags   = [var.name]
+output "load_balancer_ip" {
+  description = "External HTTPS load balancer IP — point the cert domain's A record here"
+  value       = module.network.lb_ip_address
 }
 
-output "instance_public_ip" {
-  description = "SSH target and where the stack is served"
-  value       = google_compute_instance.poc.network_interface[0].access_config[0].nat_ip
+output "instance_private_ip" {
+  description = "Private IP of the app VM (SSH via IAP: gcloud compute ssh --tunnel-through-iap)"
+  value       = google_compute_instance.poc.network_interface[0].network_ip
 }

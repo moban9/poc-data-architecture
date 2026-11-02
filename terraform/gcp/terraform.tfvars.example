@@ -1,8 +1,8 @@
 # Copy to terraform.tfvars and fill in.
-project_id      = "your-gcp-project-id"
-name            = "lms-poc"
-region          = "us-central1"
-zone            = "us-central1-a"
-machine_type    = "e2-standard-8"   # or "e2-standard-4" (4-core, tight)
-boot_disk_gb    = 100
-allowed_ssh_cidrs = ["203.0.113.0/24"]  # replace with your public IP /32
+project_id   = "your-gcp-project-id"
+name         = "lms-poc"
+region       = "asia-southeast2"
+zone         = "asia-southeast2-a"
+machine_type = "e2-standard-8"          # 8 vCPU / 32 GB
+boot_disk_gb = 100
+cert_domain  = "app.example.com"        # create an A record pointing at the LB IP
