@@ -47,7 +47,7 @@ x-plane-mq-env: &plane-mq-env
   RABBITMQ_VHOST: plane
 
 x-plane-app-env: &plane-app-env
-  WEB_URL: "${PLANE_WEB_URL:-http://plane-web}"
+  WEB_URL: "${PLANE_WEB_URL:-https://plane.onendo.cloud}"
   DEBUG: "0"
   USE_MINIO: "1"
   GUNICORN_WORKERS: "1"
