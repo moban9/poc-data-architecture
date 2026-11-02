@@ -7,6 +7,9 @@ terraform.tfstate*
 # Compose secrets
 compose/.env
 
+# Iceberg sink connector jars (fetched via scripts/fetch-iceberg-jars.sh)
+compose/connect-plugins/
+
 # OS noise
 .DS_Store
 

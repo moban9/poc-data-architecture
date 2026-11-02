@@ -70,13 +70,13 @@ services:
     command: ["--http.port=9000"]
     environment:
       initialBuckets: ${MINIO_BUCKET:-lakehouse}
-      root: /data
+      root: /s3mockroot
     ports:
     - "9000:9000"
     mem_limit: 512m
     cpus: 0.5
     volumes:
-    - minio_data:/data
+    - minio_data:/s3mockroot
 
     restart: unless-stopped
   polaris-postgres:
