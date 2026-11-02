@@ -15,34 +15,36 @@ services:
       POSTGRES_PASSWORD: ${LMS_DB_PASSWORD:-lms}
       POSTGRES_DB: ${LMS_DB_NAME:-lms}
     ports:
-      - "5432:5432"
+    - "5432:5432"
     command: >
       postgres -c wal_level=logical -c max_replication_slots=4
                -c max_wal_senders=4 -c shared_preload_libraries=pgoutput
     mem_limit: 384m
     cpus: 0.5
     volumes:
-      - lms_pg_data:/var/lib/postgresql/data
+    - lms_pg_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${LMS_DB_USER:-lms}"]
       interval: 10s
       timeout: 5s
       retries: 10
 
+    restart: unless-stopped
   lms-api:
     # TODO(Piston): FastAPI service + deterministic seed generator (02 doc).
     build: ../src/lms
     environment:
       DATABASE_URL: postgresql://${LMS_DB_USER:-lms}:${LMS_DB_PASSWORD:-lms}@lms-postgres:5432/${LMS_DB_NAME:-lms}
     ports:
-      - "8000:8000"
+    - "8000:8000"
     depends_on:
-      - lms-postgres
+    - lms-postgres
     mem_limit: 512m
     cpus: 0.5
 
   # Demo control panel (FastAPI) — drives the pipeline scenarios. Served by the
   # Traefik edge layer at demo.<DOMAIN>; not published to the host.
+    restart: unless-stopped
   demo:
     build: ../demo
     environment:
@@ -55,13 +57,14 @@ services:
       PLANE_API_URL: ${PLANE_API_URL:-http://plane:8000/api/v1}
       PLANE_UI_URL: ${PLANE_UI_URL:-http://plane-web:80}
     expose:
-      - "8000"
+    - "8000"
     depends_on:
-      - lms-api
+    - lms-api
     mem_limit: 256m
     cpus: 0.25
 
   # ── Lakehouse: object storage + catalog ────────────────────────────────────
+    restart: unless-stopped
   minio:
     image: ${MINIO_IMAGE:-adobe/s3mock:latest}
     command: ["--server.port=9000"]
@@ -69,12 +72,13 @@ services:
       initialBuckets: ${MINIO_BUCKET:-lakehouse}
       root: /data
     ports:
-      - "9000:9000"
+    - "9000:9000"
     mem_limit: 512m
     cpus: 0.5
     volumes:
-      - minio_data:/data
+    - minio_data:/data
 
+    restart: unless-stopped
   polaris-postgres:
     image: ${POSTGRES_IMAGE:-postgres:16}
     environment:
@@ -82,12 +86,13 @@ services:
       POSTGRES_PASSWORD: ${POLARIS_DB_PASSWORD:-polaris}
       POSTGRES_DB: ${POLARIS_DB_NAME:-polaris}
     ports:
-      - "5433:5432"
+    - "5433:5432"
     mem_limit: 256m
     cpus: 0.25
     volumes:
-      - polaris_pg_data:/var/lib/postgresql/data
+    - polaris_pg_data:/var/lib/postgresql/data
 
+    restart: unless-stopped
   polaris:
     image: ${POLARIS_IMAGE:-apache/polaris:latest}
     environment:
@@ -100,21 +105,22 @@ services:
       AWS_SECRET_ACCESS_KEY: ${MINIO_SECRET_KEY:-CHANGE_ME_minio}
       JAVA_TOOL_OPTIONS: "-Xmx384m"
     ports:
-      - "8181:8181"
+    - "8181:8181"
     depends_on:
-      - polaris-postgres
+    - polaris-postgres
     mem_limit: 512m
     cpus: 0.5
 
   # One-shot: create the Polaris `lakehouse` catalog (Iceberg REST). See
   # polaris/init-lakehouse.sh.
+    restart: unless-stopped
   polaris-setup:
     image: ${POLARIS_SETUP_IMAGE:-alpine/curl:latest}
     entrypoint: ["/bin/sh", "-c"]
     command:
-      - >
-        apk add --no-cache jq >/dev/null &&
-        sh /polaris/init-lakehouse.sh
+    - >
+      apk add --no-cache jq >/dev/null &&
+      sh /polaris/init-lakehouse.sh
     environment:
       POLARIS_HOST: ${POLARIS_HOST:-http://polaris:8181}
       POLARIS_REALM: ${POLARIS_REALM:-POLARIS}
@@ -127,7 +133,7 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-CHANGE_ME_minio}
     volumes:
-      - ./polaris:/polaris:ro
+    - ./polaris:/polaris:ro
     depends_on:
       minio:
         condition: service_started
@@ -153,17 +159,18 @@ services:
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     ports:
-      - "9092:9092"
+    - "9092:9092"
     mem_limit: 1536m
     cpus: 1.0
     volumes:
-      - kafka_data:/var/lib/kafka/data
+    - kafka_data:/var/lib/kafka/data
     healthcheck:
       test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1 || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 10
 
+    restart: unless-stopped
   connect:
     image: ${CONNECT_IMAGE:-debezium/connect:2.7.3.Final}
     environment:
@@ -178,18 +185,19 @@ services:
       CONNECT_REST_ADVERTISED_HOST_NAME: connect
       <<: *jvm-logging
     ports:
-      - "8083:8083"
+    - "8083:8083"
     depends_on:
-      - kafka
+    - kafka
     volumes:
-      - connect_config:/kafka/config
-      - connect_data:/kafka/data
-      - connect_logs:/kafka/logs
-      - ./connect-plugins:/kafka/connect/iceberg-sink
+    - connect_config:/kafka/config
+    - connect_data:/kafka/data
+    - connect_logs:/kafka/logs
+    - ./connect-plugins:/kafka/connect/iceberg-sink
     mem_limit: 1536m
     cpus: 1.0
 
   # ── Compute / transform / serve ────────────────────────────────────────────
+    restart: unless-stopped
   trino:
     image: ${TRINO_IMAGE:-trinodb/trino:latest}
     environment:
@@ -204,14 +212,14 @@ services:
       MINIO_ENDPOINT: ${MINIO_ENDPOINT:-http://minio:9000}
       MINIO_REGION: ${MINIO_REGION:-us-east-1}
     ports:
-      - "8080:8080"
+    - "8080:8080"
     mem_limit: 2048m
     cpus: 1.5
     volumes:
       # Filename = Trino catalog name: lakehouse.properties (Polaris REST catalog).
       # etc/catalog/postgres.properties (LMS) still TODO.
-      - ./trino/catalog:/etc/trino/catalog:ro
-      - ./demo:/demo:ro
+    - ./trino/catalog:/etc/trino/catalog:ro
+    - ./demo:/demo:ro
     depends_on:
       minio:
         condition: service_started
@@ -227,41 +235,45 @@ services:
 
   # Ad-hoc engine for the data-virtualization demo (profiles: demo).
   # Run it:  docker compose run --rm duckdb
+    restart: unless-stopped
   duckdb:
     image: ${DUCKDB_IMAGE:-duckdb/duckdb:latest}
     profiles: ["demo"]
     volumes:
-      - ./demo:/demo
+    - ./demo:/demo
     working_dir: /demo
     mem_limit: 512m
     cpus: 0.5
 
   # ── BI ─────────────────────────────────────────────────────────────────────
+    restart: unless-stopped
   metabase:
     image: ${METABASE_IMAGE:-metabase/metabase:latest}
     environment:
       MB_JETTY_PORT: 3000
       JAVA_TOOL_OPTIONS: "-Xmx640m"
     ports:
-      - "8085:3000"
+    - "8085:3000"
     mem_limit: 1g
     cpus: 0.5
     volumes:
-      - metabase_data:/metabase-data
+    - metabase_data:/metabase-data
     depends_on:
-      - trino
+    - trino
 
   # ── Monitoring ─────────────────────────────────────────────────────────────
+    restart: unless-stopped
   node-exporter:
     image: ${NODE_EXPORTER_IMAGE:-prom/node-exporter:latest}
     ports:
-      - "9100:9100"
+    - "9100:9100"
     mem_limit: 128m
     cpus: 0.25
     # TODO(Relay): add JMX exporters (Kafka, Connect, Trino, Polaris) as java
     # agents via JAVA_TOOL_OPTIONS on each JVM, plus MinIO + Postgres exporters.
     # Configs under monitoring/jmx/.
 
+    restart: unless-stopped
 networks:
   default:
     name: lms-poc

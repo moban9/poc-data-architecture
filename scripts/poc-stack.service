@@ -1,0 +1,17 @@
+[Unit]
+Description=POC data pipeline stack (docker compose up in dependency order)
+After=docker.service network-online.target
+Wants=docker.service network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=ubuntu
+WorkingDirectory=/home/ubuntu/poc/compose
+ExecStartPre=/bin/sleep 10
+ExecStart=/usr/bin/docker compose -f docker-compose.yml -f monitoring.yml -f traefik.yml up -d
+ExecStop=/usr/bin/docker compose -f docker-compose.yml -f monitoring.yml -f traefik.yml down
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target
