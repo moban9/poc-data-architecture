@@ -45,7 +45,7 @@ groups:
       # simulated failure/incident (demo_failure{stage=...}=1 pushed to the
       # pushgateway). A failed stage is forced to 0 so the Grafana node goes red.
       - record: pipeline_stage_health_effective
-        expr: (pipeline_stage_health * (1 - demo_failure)) or pipeline_stage_health
+        expr: (pipeline_stage_health * on(stage) (1 - demo_failure)) or pipeline_stage_health
 
       - record: pipeline_stage_edge
         expr: vector(1)
