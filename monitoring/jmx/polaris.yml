@@ -1,0 +1,8 @@
+# JMX exporter config for Apache Polaris (Quarkus).
+# Catch-all exposes JVM MBeans (Quarkus uses Micrometer for app metrics, but the
+# JVM platform MBeans are always present). Port 7074.
+startDelaySeconds: 0
+lowercaseOutputName: true
+lowercaseOutputLabelNames: true
+rules:
+  - pattern: ".*"

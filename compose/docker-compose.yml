@@ -104,13 +104,15 @@ services:
       AWS_REGION: ${MINIO_REGION:-us-east-1}
       AWS_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY:-minioadmin}
       AWS_SECRET_ACCESS_KEY: ${MINIO_SECRET_KEY:-CHANGE_ME_minio}
-      JAVA_TOOL_OPTIONS: "-Xmx384m"
+      JAVA_TOOL_OPTIONS: "-Xmx384m -javaagent:/opt/jmx/jmx_prometheus_javaagent.jar=7074:/opt/jmx/polaris.yml"
     ports:
     - "8181:8181"
     depends_on:
     - polaris-postgres
     mem_limit: 512m
     cpus: 0.5
+    volumes:
+    - ../monitoring/jmx:/opt/jmx:ro
 
   # One-shot: create the Polaris `lakehouse` catalog (Iceberg REST). See
   # polaris/init-lakehouse.sh.
@@ -159,12 +161,14 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      JAVA_TOOL_OPTIONS: "-javaagent:/opt/jmx/jmx_prometheus_javaagent.jar=7071:/opt/jmx/kafka.yml"
     ports:
     - "9092:9092"
     mem_limit: 1536m
     cpus: 1.0
     volumes:
     - kafka_data:/var/lib/kafka/data
+    - ../monitoring/jmx:/opt/jmx:ro
     healthcheck:
       test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1 || exit 1"]
       interval: 15s
@@ -185,6 +189,7 @@ services:
       STATUS_STORAGE_REPLICATION_FACTOR: 1
       CONNECT_REST_ADVERTISED_HOST_NAME: connect
       <<: *jvm-logging
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75 -Djava.util.logging.config.file=/dev/null -javaagent:/opt/jmx/jmx_prometheus_javaagent.jar=7072:/opt/jmx/connect.yml"
     ports:
     - "8083:8083"
     depends_on:
@@ -194,6 +199,7 @@ services:
     - connect_data:/kafka/data
     - connect_logs:/kafka/logs
     - ./connect-plugins:/kafka/connect/iceberg-sink
+    - ../monitoring/jmx:/opt/jmx:ro
     mem_limit: 1536m
     cpus: 1.0
 
@@ -245,7 +251,7 @@ services:
     restart: unless-stopped
     image: ${TRINO_IMAGE:-trinodb/trino:latest}
     environment:
-      JAVA_TOOL_OPTIONS: "-Xmx1g"
+      JAVA_TOOL_OPTIONS: "-Xmx1g -javaagent:/opt/jmx/jmx_prometheus_javaagent.jar=7073:/opt/jmx/trino.yml"
       # Injected into etc/catalog/lakehouse.properties via ${ENV:...} (see
       # trino/catalog/README.md for the full env contract).
       POLARIS_URI: ${POLARIS_URI:-http://polaris:8181/api/catalog}
@@ -266,6 +272,7 @@ services:
       # etc/catalog/postgres.properties (LMS) still TODO.
     - ./trino/catalog:/etc/trino/catalog:ro
     - ./demo:/demo:ro
+    - ../monitoring/jmx:/opt/jmx:ro
     depends_on:
       minio:
         condition: service_started

@@ -5,12 +5,14 @@
 #
 # Exporter contract (owners, see README "Owned TODOs"):
 #   node-exporter  :9100   host metrics — already in the main stack.
-#   minio          :9000   native /minio/v2/metrics/cluster endpoint.
+#   minio          :9115   blackbox http_2xx probe of s3mock's /favicon.ico
+#                          (adobe/s3mock has no native Prometheus endpoint and its
+#                          minimal JRE lacks jdk.httpserver, so a JMX javaagent
+#                          cannot run there).
 #   kafka  :7071, connect :7072, trino :7073, polaris :7074
 #                          JMX exporters attached to each JVM via JAVA_TOOL_OPTIONS
 #                          (jmx_prometheus_javaagent). Configs live under
-#                          monitoring/jmx/ (Relay). Until those land, these jobs
-#                          report `up == 0`, which is expected.
+#                          monitoring/jmx/ (Relay).
 #   lms-postgres   :9187   postgres_exporter for the CDC source (Relay).
 #   lms            :8000   LMS API /metrics (requires the FastAPI app to expose
 #                          Prometheus metrics — Piston).
@@ -56,9 +58,18 @@ scrape_configs:
       - targets: ["node-exporter:9100"]
 
   - job_name: minio
-    metrics_path: /minio/v2/metrics/cluster
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
     static_configs:
-      - targets: ["minio:9000"]
+      - targets: ["http://minio:9000/favicon.ico"]
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
 
   - job_name: kafka
     static_configs:
@@ -73,7 +84,6 @@ scrape_configs:
       - targets: ["trino:7073"]
 
   - job_name: polaris
-    metrics_path: /q/metrics
     static_configs:
       - targets: ["polaris:7074"]
 

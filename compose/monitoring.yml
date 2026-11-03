@@ -94,6 +94,24 @@ services:
     restart: unless-stopped
     networks: [default]
 
+  # HTTP prober — liveness-checking s3mock ("minio"), which has no native
+  # Prometheus endpoint and whose minimal JRE can't host the JMX javaagent.
+  blackbox-exporter:
+    image: ${BLACKBOX_EXPORTER_IMAGE:-prom/blackbox-exporter:latest}
+    ports: ["9115:9115"]
+    restart: unless-stopped
+    networks: [default]
+
+  # CDC source Postgres exporter — exposes pg_stat_* / db-level metrics on :9187.
+  # Connects to lms-postgres (main stack) over the shared `lms-poc` network.
+  lms-postgres-exporter:
+    image: ${POSTGRES_EXPORTER_IMAGE:-prometheuscommunity/postgres-exporter:latest}
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${LMS_DB_USER:-lms}:${LMS_DB_PASSWORD:-lms}@lms-postgres:5432/${LMS_DB_NAME:-lms}?sslmode=disable"
+    ports: ["9187:9187"]
+    restart: unless-stopped
+    networks: [default]
+
   grafana:
     image: ${GRAFANA_IMAGE:-grafana/grafana:latest}
     environment:

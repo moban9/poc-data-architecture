@@ -1,0 +1,8 @@
+# JMX exporter config for Trino.
+# Catch-all exposes JVM + trino.* MBeans (queries, memory pools, connectors).
+# Port 7073.
+startDelaySeconds: 0
+lowercaseOutputName: true
+lowercaseOutputLabelNames: true
+rules:
+  - pattern: ".*"

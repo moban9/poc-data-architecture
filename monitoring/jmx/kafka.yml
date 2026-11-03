@@ -1,0 +1,9 @@
+# JMX exporter config for Kafka (KRaft broker+controller).
+# Exposes every MBean (JVM + kafka.server / kafka.controller / kafka.network);
+# specific metric-name rewriting can be layered on later. Consumed by
+# jmx_prometheus_javaagent via JAVA_TOOL_OPTIONS (port 7071).
+startDelaySeconds: 0
+lowercaseOutputName: true
+lowercaseOutputLabelNames: true
+rules:
+  - pattern: ".*"

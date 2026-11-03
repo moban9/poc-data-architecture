@@ -218,7 +218,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "up{job=~\"node-exporter|minio|kafka|connect|trino|polaris|lms-postgres|lms\"}",
+          "expr": "up{job=~\"node-exporter|kafka|connect|trino|polaris|lms-postgres|lms\"} or probe_success{job=\"minio\"}",
           "legendFormat": "{{job}}"
         }
       ],

@@ -10,6 +10,9 @@ compose/.env
 # Iceberg sink connector jars (fetched via scripts/fetch-iceberg-jars.sh)
 compose/connect-plugins/
 
+# Prometheus JMX exporter javaagent (fetched via scripts/fetch-jmx-jars.sh)
+monitoring/jmx/*.jar
+
 # OS noise
 .DS_Store
 

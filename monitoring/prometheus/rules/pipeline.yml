@@ -8,7 +8,8 @@
 #   LMS      → up{lms-postgres}        (CDC source Postgres)
 #   Debezium → up{connect}             (Kafka Connect)
 #   Kafka    → up{kafka}
-#   Iceberg  → up{minio}               (object store)
+#   Iceberg  → probe_success{minio}    (blackbox HTTP probe of s3mock; s3mock
+#                                        has no native Prometheus endpoint)
 #   Bronze/Silver/Gold → dbt_run_success{layer=...}  (pushed by Dagster/dbt)
 #   BI       → up{trino}               (query engine behind Metabase)
 #
@@ -24,13 +25,13 @@ groups:
     interval: 30s
     rules:
       - record: pipeline_stage_health
-        expr: label_replace(up{job="lms-postgres"} or vector(0), "stage", "LMS", "", "")
+        expr: label_replace(max(up{job="lms-postgres"}) or vector(0), "stage", "LMS", "", "")
       - record: pipeline_stage_health
-        expr: label_replace(up{job="connect"} or vector(0), "stage", "Debezium", "", "")
+        expr: label_replace(max(up{job="connect"}) or vector(0), "stage", "Debezium", "", "")
       - record: pipeline_stage_health
-        expr: label_replace(up{job="kafka"} or vector(0), "stage", "Kafka", "", "")
+        expr: label_replace(max(up{job="kafka"}) or vector(0), "stage", "Kafka", "", "")
       - record: pipeline_stage_health
-        expr: label_replace(up{job="minio"} or vector(0), "stage", "Iceberg", "", "")
+        expr: label_replace(max(probe_success{job="minio"}) or vector(0), "stage", "Iceberg", "", "")
       - record: pipeline_stage_health
         expr: label_replace(dbt_run_success{layer="bronze"} or vector(0), "stage", "Bronze", "", "")
       - record: pipeline_stage_health
@@ -38,7 +39,7 @@ groups:
       - record: pipeline_stage_health
         expr: label_replace(dbt_run_success{layer="gold"} or vector(0), "stage", "Gold", "", "")
       - record: pipeline_stage_health
-        expr: label_replace(up{job="trino"} or vector(0), "stage", "BI", "", "")
+        expr: label_replace(max(up{job="trino"}) or vector(0), "stage", "BI", "", "")
 
       - record: pipeline_stage_edge
         expr: vector(1)
@@ -110,7 +111,8 @@ groups:
 
       - alert: ServiceDown
         expr: >-
-          up{job=~"node-exporter|minio|kafka|connect|trino|polaris|lms-postgres|lms"} == 0
+          up{job=~"node-exporter|kafka|connect|trino|polaris|lms-postgres|lms"} == 0
+          or probe_success{job="minio"} == 0
         for: 2m
         labels:
           severity: critical
