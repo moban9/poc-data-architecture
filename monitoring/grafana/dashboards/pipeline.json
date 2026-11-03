@@ -39,7 +39,7 @@
       "targets": [
         {
           "refId": "nodes",
-          "expr": "label_replace(label_replace(pipeline_stage_health, \"title\", \"$1\", \"stage\", \"(.*)\"), \"id\", \"$1\", \"stage\", \"(.*)\")",
+          "expr": "label_replace(label_replace(label_replace(pipeline_stage_health, \"title\", \"$1\", \"stage\", \"(.*)\"), \"id\", \"$1\", \"stage\", \"(.*)\"), \"color\", \"green\", \"__name__\", \".*\")",
           "legendFormat": "{{stage}}",
           "instant": true,
           "range": false,
