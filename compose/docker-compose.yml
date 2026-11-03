@@ -234,10 +234,10 @@ services:
     depends_on:
       connect:
         condition: service_started
-      polaris:
-        condition: service_started
       minio:
         condition: service_started
+      polaris-setup:
+        condition: service_completed_successfully
     restart: "no"
 
   # ── Compute / transform / serve ────────────────────────────────────────────
@@ -297,6 +297,7 @@ services:
     image: ${METABASE_IMAGE:-metabase/metabase:latest}
     environment:
       MB_JETTY_PORT: 3000
+      MB_DB_FILE: /metabase-data/metabase.db
       JAVA_TOOL_OPTIONS: "-Xmx1280m"
     ports:
       - "8085:3000"
