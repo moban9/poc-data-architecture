@@ -1,9 +1,22 @@
-# JMX exporter config for Kafka Connect (Debezium).
+# JMX exporter config for Kafka Connect (Debezium). Port 7072.
 # Catch-all exposes JVM + kafka.connect.* MBeans (connector/task metrics).
-# Connector status (RUNNING/FAILED) is surfaced via the kafka.connect
-# connector-status MBean when present. Port 7072.
+#
+# Connector status (RUNNING/FAILED/PAUSED/...) lives on the framework MBean
+# kafka.connect:type=connector-metrics,connector=<name> as a String `status`
+# attribute. String attributes are skipped by the numeric-only catch-all, so it
+# is mapped explicitly here: the status string is captured into a `status`
+# label and a constant 1 is emitted as a gauge (value = 1 for the current
+# status, absent otherwise).
 startDelaySeconds: 0
 lowercaseOutputName: true
 lowercaseOutputLabelNames: true
 rules:
-  - pattern: ".*"
+  - pattern: 'kafka\.connect<type=connector-metrics, connector=(.+?)><>status: (.+)'
+    name: kafka_connect_connector_status
+    type: GAUGE
+    help: 'Kafka Connect connector status (1 = current status)'
+    value: 1
+    labels:
+      connector: $1
+      status: $2
+  - pattern: '.*'

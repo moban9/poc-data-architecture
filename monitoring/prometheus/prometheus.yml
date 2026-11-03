@@ -91,6 +91,11 @@ scrape_configs:
     static_configs:
       - targets: ["lms-postgres-exporter:9187"]
 
+  # Consumer-group lag sidecar (monitoring/lag-exporter) — kafka_consumergroup_lag.
+  - job_name: kafka-lag-exporter
+    static_configs:
+      - targets: ["kafka-lag-exporter:9190"]
+
   - job_name: lms
     static_configs:
       - targets: ["lms-api:8000"]

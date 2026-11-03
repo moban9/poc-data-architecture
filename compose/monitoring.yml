@@ -112,6 +112,25 @@ services:
     restart: unless-stopped
     networks: [default]
 
+  # Consumer-group lag exporter (Relay). Runs kafka-consumer-groups.sh against
+  # the broker and serves kafka_consumergroup_lag{group,topic} on :9190. Reuses
+  # the Connect image (already present) for its kafka CLI + python3, so no new
+  # image pull is required.
+  kafka-lag-exporter:
+    image: ${CONNECT_IMAGE:-debezium/connect:2.7.3.Final}
+    entrypoint: ["python3", "/lag-exporter/kafka-lag-exporter.py"]
+    environment:
+      BOOTSTRAP_SERVERS: kafka:9092
+      SCRAPE_INTERVAL: "10"
+      EXPORTER_PORT: "9190"
+      JAVA_TOOL_OPTIONS: ""
+    ports: ["9190:9190"]
+    volumes:
+      - ../monitoring/lag-exporter:/lag-exporter:ro
+    depends_on: [kafka]
+    restart: unless-stopped
+    networks: [default]
+
   grafana:
     image: ${GRAFANA_IMAGE:-grafana/grafana:latest}
     environment:
