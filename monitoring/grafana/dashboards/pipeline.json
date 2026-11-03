@@ -38,7 +38,7 @@
       },
       "targets": [
         {
-          "refId": "A",
+          "refId": "nodes",
           "expr": "label_replace(label_replace(pipeline_stage_health, \"title\", \"$1\", \"stage\", \"(.*)\"), \"id\", \"$1\", \"stage\", \"(.*)\")",
           "legendFormat": "{{stage}}",
           "instant": true,
@@ -46,8 +46,8 @@
           "format": "table"
         },
         {
-          "refId": "B",
-          "expr": "pipeline_stage_edge",
+          "refId": "edges",
+          "expr": "label_join(pipeline_stage_edge, \"id\", \"-\", \"source\", \"target\")",
           "legendFormat": "{{source}} -> {{target}}",
           "instant": true,
           "range": false,
