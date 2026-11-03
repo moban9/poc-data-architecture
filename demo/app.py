@@ -309,6 +309,41 @@ async def _create_plane_ticket(run_id: str, breach_msg: str) -> dict:
     }
 
 
+# Scenario → the pipeline stage the Grafana topology should mark failed when the
+# simulated failure/incident runs. The demo pushes a `demo_failure{stage=...}`
+# gauge (1 = failed) to the pushgateway; the topology query multiplies
+# pipeline_stage_health by (1 - demo_failure) to override that stage to 0/red.
+SCENARIO_FAILED_STAGE = {
+    "failure": "Iceberg",  # "Pipeline failure (Iceberg sink)"
+    "incident": "Gold",    # "DQ SLO breach → incident ticket"
+}
+
+
+def _push_demo_failure(stage: str | None) -> None:
+    """Push (or clear) demo_failure{stage=...} to the pushgateway (best-effort).
+
+    A non-None stage marks that stage failed in the Grafana topology; None
+    clears the failure (PUT an empty group so every stage reads healthy).
+    """
+    pg_url = os.environ.get("PUSHGATEWAY_URL", "http://pushgateway:9091")
+    body = "" if stage is None else f'demo_failure{{stage="{stage}"}} 1\n'
+
+    def _put() -> None:
+        req = urllib.request.Request(
+            f"{pg_url}/metrics/job/demo-scenario",
+            data=body.encode(),
+            headers={"Content-Type": "text/plain; version=0.0.4"},
+            method="PUT",
+        )
+        with urllib.request.urlopen(req, timeout=5):
+            pass
+
+    try:
+        _put()
+    except Exception:  # noqa: BLE001 — monitoring is best-effort
+        pass
+
+
 async def generate(name: str, count: int | None = None, mode: str | None = None):
     """Async generator yielding (event, payload) tuples for a scenario run.
 
@@ -330,6 +365,9 @@ async def generate(name: str, count: int | None = None, mode: str | None = None)
         "title": scenario["title"],
         "systems": systems,
     }
+
+    # Reflect a simulated failure/incident in Grafana by pushing demo_failure.
+    await asyncio.to_thread(_push_demo_failure, SCENARIO_FAILED_STAGE.get(name))
 
     hop_results: list[dict] = []
     failed = False

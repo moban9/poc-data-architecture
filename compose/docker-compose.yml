@@ -57,6 +57,7 @@ services:
       DAGSTER_URL: http://dagster:3000
       PLANE_API_URL: ${PLANE_API_URL:-http://plane:8000/api/v1}
       PLANE_UI_URL: ${PLANE_UI_URL:-http://plane-web:80}
+      PUSHGATEWAY_URL: ${PUSHGATEWAY_URL:-http://pushgateway:9091}
     expose:
     - "8000"
     depends_on:
@@ -295,13 +296,13 @@ services:
   # quarantine models isolate dirty rows; dbt test is EXPECTED to report the
   # failures it catches (see dbt/README.md).
   dbt:
-    image: ${DBT_IMAGE:-python:3.11-slim}
+    image: ${DBT_IMAGE:-onendo-dbt:latest}
+    build:
+      context: ../dbt
+      dockerfile: dbt.Dockerfile
     working_dir: /dbt
     entrypoint: ["/bin/sh", "-c"]
-    command:
-      - >
-        pip install --quiet --no-cache-dir dbt-trino &&
-        sh scripts/run-and-push-metrics.sh
+    command: ["sh scripts/run-and-push-metrics.sh"]
     environment:
       DBT_PROFILES_DIR: /dbt
       TRINO_HOST: trino
@@ -333,6 +334,9 @@ services:
       MB_JETTY_PORT: 3000
       MB_DB_FILE: /metabase-data/metabase.db
       JAVA_TOOL_OPTIONS: "-Xmx1280m"
+      # Freshness: the demo injects data and expects dashboards to reflect it
+      # quickly, so disable result caching (Trino is local; load is negligible).
+      MB_ENABLE_QUERY_CACHING: "false"
     ports:
       - "8085:3000"
     mem_limit: 2g
