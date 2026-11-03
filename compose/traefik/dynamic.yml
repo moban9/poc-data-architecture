@@ -27,6 +27,10 @@ http:
       entryPoints: [web]
       rule: 'Host(`plane.{{ default "onendo.cloud" (env "DOMAIN") }}`) && PathPrefix(`/api`)'
       service: plane-backend
+    plane-admin:
+      entryPoints: [web]
+      rule: 'Host(`plane.{{ default "onendo.cloud" (env "DOMAIN") }}`) && PathPrefix(`/god-mode`)'
+      service: plane-admin
 
   services:
     grafana:
@@ -49,3 +53,7 @@ http:
       loadBalancer:
         servers:
           - url: http://plane:8000
+    plane-admin:
+      loadBalancer:
+        servers:
+          - url: http://plane-admin:3000

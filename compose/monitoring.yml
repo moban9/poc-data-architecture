@@ -204,6 +204,19 @@ services:
     restart: unless-stopped
     networks: [default]
 
+  # Admin panel (instance-setup wizard + instance settings). Serves the
+  # /god-mode/* routes; the web frontend has no such route, so without this
+  # the "Get started" link on the welcome screen loops back to the welcome
+  # screen. Static nginx build (no runtime env), basename baked as /god-mode/.
+  plane-admin:
+    image: makeplane/plane-admin:v1.4.3
+    ports: ["3011:3000"]
+    volumes:
+      - ./plane-admin/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on: [plane]
+    restart: unless-stopped
+    networks: [default]
+
 volumes:
   prometheus_data:
   alertmanager_data:
