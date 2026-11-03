@@ -42,14 +42,16 @@
           "expr": "label_replace(label_replace(pipeline_stage_health, \"title\", \"$1\", \"stage\", \"(.*)\"), \"id\", \"$1\", \"stage\", \"(.*)\")",
           "legendFormat": "{{stage}}",
           "instant": true,
-          "range": false
+          "range": false,
+          "format": "table"
         },
         {
           "refId": "B",
           "expr": "pipeline_stage_edge",
           "legendFormat": "{{source}} -> {{target}}",
           "instant": true,
-          "range": false
+          "range": false,
+          "format": "table"
         }
       ],
       "fieldConfig": {
@@ -83,18 +85,7 @@
           "secondaryStatUnit": "none"
         }
       },
-      "transformations": [
-        {
-          "id": "labelsToFields",
-          "options": {
-            "mode": "columns"
-          }
-        },
-        {
-          "id": "merge",
-          "options": {}
-        }
-      ]
+      "transformations": []
     },
     {
       "id": 2,
