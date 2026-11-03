@@ -42,12 +42,44 @@ Quarantine table (`models/quarantine.sql`, doc 05 §5.4) — 11 columns:
 
 ## Run
 
+One command (runs seed + silver + gold, then pushes metrics to the pushgateway):
+
 ```bash
-cp profiles.yml.example ~/.dbt/profiles.yml   # fill in Trino/Polaris
-dbt seed          # load dirty_data + borrowers into bronze
-dbt run           # quarantine bad rows + build clean silver + create quarantine table
-dbt test          # assert gate: schema.yml passes on clean data; seed tests fail 5x
+sh scripts/run-and-push-metrics.sh        # assumes dbt + dbt-trino installed
 ```
+
+Or via the compose one-shot service (installs dbt-trino in a container):
+
+```bash
+docker compose up -d --force-recreate dbt
+```
+
+Manual, step by step:
+
+```bash
+cp profiles.yml.example ~/.dbt/profiles.yml   # or use dbt/profiles.yml with --profiles-dir
+dbt seed --profiles-dir .                    # demo dirty_data + borrowers -> bronze (optional)
+dbt run  --profiles-dir .                    # quarantine bad rows + build clean silver + gold
+dbt test --profiles-dir .                    # assert gate (clean models pass; dirty rows FAIL)
+```
+
+`dbt test` is **expected** to report failures — that is the DQ gate correctly
+flagging the dirty rows still flowing through `silver.loan_event` (NULL/ orphan
+`loan_id`) and the `dirty_data` seed. Those failures are pushed as
+`dbt_test_failures` and their offending rows land in quarantine.
+
+## Production wiring (live CDC)
+
+The Silver models now read the **live Bronze CDC stream** (not the demo seeds):
+
+- `stg_loan` → `source('bronze','loan')`
+- `dim_borrower` → `source('bronze','borrower')`
+- `loan_event` → `source('bronze','loan_event')` (unchanged passthrough)
+
+The Bronze sink stores `loan.amount` as an **obfuscated base64 string** (raw
+Debezium `DECIMAL(18,2)` bytes, see `macros/decode_amount.sql`). `stg_loan`
+decodes it back to a numeric `amount` so the `positive_value` DQ rule and the
+Gold `sum(amount)` aggregates operate on real numbers.
 
 Expected outcome (dirty demo):
 
@@ -66,5 +98,9 @@ Expected outcome (dirty demo):
 - `offending_row` is stored as varchar (Iceberg has no native json type).
 - The on-run-end hook requires `dbt run` (or `dbt build`) first so the
   quarantine table exists.
-- Production swap (one line each): `stg_loan` -> `source('bronze','loan')`,
-  `dim_borrower` -> `source('bronze','borrower')` once the Debezium sink is live.
+- Production swap is **done**: `stg_loan` -> `source('bronze','loan')`,
+  `dim_borrower` -> `source('bronze','borrower')` (see "Production wiring").
+  The `borrowers`/`dirty_data` seeds remain only to exercise the seed DQ tests.
+- The Bronze sink stores `loan.amount` as raw Decimal bytes (base64) — decoded
+  in `stg_loan` via `macros/decode_amount.sql`. Fixing the sink to emit a real
+  DECIMAL is tracked separately (out of dbt's scope).

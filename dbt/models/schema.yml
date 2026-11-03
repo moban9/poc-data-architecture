@@ -77,3 +77,41 @@ models:
         tests:
           - not_null
           - unique
+
+  # ── Gold models ──────────────────────────────────────────────────────────
+  - name: loan_portfolio
+    description: "Gold: loan portfolio roll-up by currency."
+    columns:
+      - name: currency
+        description: "ISO 4217 currency code."
+        tests:
+          - not_null
+      - name: loan_count
+        description: "Number of clean loans in this currency."
+        tests:
+          - positive_value
+
+  - name: loan_origination_daily
+    description: "Gold: daily loan origination volume."
+    columns:
+      - name: origination_date
+        description: "Date the loans were originated (YYYY-MM-DD)."
+        tests:
+          - not_null
+          - valid_date
+      - name: loan_count
+        description: "Number of clean loans originated that day."
+        tests:
+          - positive_value
+
+  - name: loan_event_summary
+    description: "Gold: loan event activity by event type."
+    columns:
+      - name: event_type
+        description: "Event type code (origination/disbursement/payment)."
+        tests:
+          - not_null
+      - name: event_count
+        description: "Number of events of this type."
+        tests:
+          - positive_value

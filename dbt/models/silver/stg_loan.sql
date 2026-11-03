@@ -2,15 +2,15 @@
 
 -- Raw loan staging — the Silver boundary's upstream input (ALL rows, bad included).
 --
--- DEMO STAND-IN: reads the dirty_data seed (the engineered failure scenario).
--- Production: swap the `from` to {{ source('bronze', 'loan') }} once the
--- Debezium -> Iceberg sink is live (see sources.yml). Everything downstream —
--- the per-rule quarantine models and the clean loan model — reads from this one
--- model, so the swap is a one-line change.
+-- PRODUCTION WIRING: reads the live Bronze CDC stream
+-- (source('bronze','loan')) instead of the demo dirty_data seed.
+-- The Debezium -> Iceberg sink stores `amount` as an obfuscated base64 string
+-- (raw Decimal bytes); decode it here so the downstream DQ rules
+-- (positive_value) and Gold aggregates can operate on real numbers.
 select
     id,
-    amount,
+    cast({{ decode_amount('amount') }} as double) as amount,
     currency,
     origination_date,
     borrower_id
-from {{ ref('dirty_data') }}
+from {{ source('bronze', 'loan') }}

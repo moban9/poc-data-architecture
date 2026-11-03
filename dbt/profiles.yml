@@ -1,0 +1,21 @@
+# dbt-trino profile for the LMS POC (Polaris Iceberg REST catalog).
+#
+# dbt connects to Trino (compose service `trino`, port 8080) which is wired to
+# the Polaris `lakehouse` catalog. No auth in the POC posture (method: none).
+#
+# When running dbt OUTSIDE the compose network (e.g. in a venv on the VM host),
+# override the host via the DBT_TRINO_HOST env var:
+#   export DBT_TRINO_HOST=localhost && dbt run
+lms_poc:
+  target: dev
+  outputs:
+    dev:
+      type: trino
+      method: none            # POC posture — use jwt/ldap for anything real
+      host: "{{ env_var('DBT_TRINO_HOST', 'trino') }}"
+      port: 8080
+      user: meridian
+      http_scheme: http
+      catalog: lakehouse       # Polaris catalog
+      schema: bronze           # default target schema for seeds / unscoped models
+      threads: 4

@@ -286,6 +286,33 @@ services:
       timeout: 5s
       retries: 10
 
+  # One-shot: run the dbt medallion pipeline (seed + silver + gold) against
+  # Trino and push the results (dbt_run_success, dbt_test_failures,
+  # quarantine_rows_total) to the pushgateway so Grafana's Bronze/Silver/Gold
+  # stages + DQ panels light up. Re-run it any time with:
+  #   docker compose up -d --force-recreate dbt
+  # (or `docker compose run --rm dbt`). The on-run-end hook + per-rule
+  # quarantine models isolate dirty rows; dbt test is EXPECTED to report the
+  # failures it catches (see dbt/README.md).
+  dbt:
+    image: ${DBT_IMAGE:-python:3.11-slim}
+    working_dir: /dbt
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >
+        pip install --quiet --no-cache-dir dbt-trino &&
+        sh scripts/run-and-push-metrics.sh
+    environment:
+      DBT_PROFILES_DIR: /dbt
+      TRINO_HOST: trino
+      PUSHGATEWAY_URL: http://pushgateway:9091
+    volumes:
+      - ../dbt:/dbt
+    depends_on:
+      trino:
+        condition: service_healthy
+    restart: "no"
+
   # Ad-hoc engine for the data-virtualization demo (profiles: demo).
   # Run it:  docker compose run --rm duckdb
   duckdb:
