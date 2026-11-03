@@ -27,4 +27,4 @@ select
     cast(null as varchar)                     as run_id,          -- dbt invocation_id
     cast(null as timestamp(6) with time zone) as quarantined_at,  -- when the row was quarantined
     cast(null as timestamp(6) with time zone) as _ingested_at     -- when the row entered the lakehouse (== quarantined_at for batch)
-where false
+limit 0
