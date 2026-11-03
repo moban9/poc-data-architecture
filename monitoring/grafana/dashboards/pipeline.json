@@ -89,6 +89,10 @@
           "options": {
             "mode": "columns"
           }
+        },
+        {
+          "id": "merge",
+          "options": {}
         }
       ]
     },
