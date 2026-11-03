@@ -200,7 +200,8 @@ services:
     image: ${PLANE_MINIO_IMAGE:-adobe/s3mock:latest}
     command: ["--http.port=9000"]
     environment:
-      root: /s3mockroot
+      COM_ADOBE_TESTING_S3MOCK_STORE_ROOT: /s3mockroot
+      COM_ADOBE_TESTING_S3MOCK_STORE_RETAIN_FILES_ON_EXIT: "true"
     volumes: ["plane_minio_data:/s3mockroot"]
     restart: unless-stopped
     networks: [default]

@@ -71,8 +71,11 @@ services:
     image: ${MINIO_IMAGE:-adobe/s3mock:latest}
     command: ["--http.port=9000"]
     environment:
-      initialBuckets: ${MINIO_BUCKET:-lakehouse}
-      root: /s3mockroot
+      # s3mock 3.x reads these exact vars (the generic `root`/`initialBuckets`
+      # envs are ignored). The store root MUST be /s3mockroot (named volume) and
+      # RETAIN_FILES_ON_EXIT=true so data survives container restarts.
+      COM_ADOBE_TESTING_S3MOCK_STORE_ROOT: /s3mockroot
+      COM_ADOBE_TESTING_S3MOCK_STORE_RETAIN_FILES_ON_EXIT: "true"
     ports:
     - "9000:9000"
     mem_limit: 512m
