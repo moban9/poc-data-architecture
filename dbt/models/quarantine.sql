@@ -1,8 +1,7 @@
 {{ config(
     materialized='table',
     schema='quarantine_lms',
-    alias='quarantine_lms',
-    pre_hook="drop table if exists {{ this }}"
+    alias='quarantine_lms'
 ) }}
 
 -- ── Quarantine table: lakehouse.quarantine_lms.quarantine_lms (doc 05 §5.4) ──
