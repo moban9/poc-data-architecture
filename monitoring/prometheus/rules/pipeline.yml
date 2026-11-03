@@ -33,11 +33,11 @@ groups:
       - record: pipeline_stage_health
         expr: label_replace(max(probe_success{job="minio"}) or vector(0), "stage", "Iceberg", "", "")
       - record: pipeline_stage_health
-        expr: label_replace(dbt_run_success{layer="bronze"} or vector(0), "stage", "Bronze", "", "")
+        expr: label_replace(max(dbt_run_success{layer="bronze"} or vector(0)), "stage", "Bronze", "", "")
       - record: pipeline_stage_health
-        expr: label_replace(dbt_run_success{layer="silver"} or vector(0), "stage", "Silver", "", "")
+        expr: label_replace(max(dbt_run_success{layer="silver"} or vector(0)), "stage", "Silver", "", "")
       - record: pipeline_stage_health
-        expr: label_replace(dbt_run_success{layer="gold"} or vector(0), "stage", "Gold", "", "")
+        expr: label_replace(max(dbt_run_success{layer="gold"} or vector(0)), "stage", "Gold", "", "")
       - record: pipeline_stage_health
         expr: label_replace(max(up{job="trino"}) or vector(0), "stage", "BI", "", "")
 

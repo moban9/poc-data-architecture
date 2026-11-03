@@ -28,6 +28,11 @@ clean-targets:
 models:
   lms_poc:
     +materialized: table
+    # Trino's Iceberg connector supports CREATE OR REPLACE (Trino >= 431);
+    # the default `rename` strategy (__dbt_backup swap) fails to drop the backup
+    # table against the Polaris Iceberg REST catalog. `replace` is atomic and
+    # re-run safe.
+    +on_table_exists: replace
     silver:
       +schema: silver
     gold:

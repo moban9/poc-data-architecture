@@ -25,6 +25,6 @@ select
     cast(null as varchar)                     as error_detail,    -- human-readable explanation
     cast(null as varchar)                     as source,          -- 'batch' (seed/dbt run) | 'cdc' (Debezium stream)
     cast(null as varchar)                     as run_id,          -- dbt invocation_id
-    cast(null as timestamp(3) with time zone) as quarantined_at,  -- when the row was quarantined
-    cast(null as timestamp(3) with time zone) as _ingested_at     -- when the row entered the lakehouse (== quarantined_at for batch)
+    cast(null as timestamp(6) with time zone) as quarantined_at,  -- when the row was quarantined
+    cast(null as timestamp(6) with time zone) as _ingested_at     -- when the row entered the lakehouse (== quarantined_at for batch)
 where false
