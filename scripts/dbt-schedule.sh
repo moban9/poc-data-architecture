@@ -16,4 +16,7 @@ trap 'rm -f "$LOCK"' EXIT
 touch "$LOCK"
 
 cd "$(dirname "$0")/../compose"
-docker compose -f docker-compose.yml -f monitoring.yml -f traefik.yml up -d --force-recreate dbt
+# `run --rm` runs ONLY the dbt service (its deps — trino/polaris — are already
+# up) without reconciling the rest of the stack, so the one-shot polaris-setup
+# (and Polaris) are never recreated mid-run.
+docker compose -f docker-compose.yml -f monitoring.yml -f traefik.yml run --rm dbt
