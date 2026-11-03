@@ -198,11 +198,10 @@ services:
 
   plane-minio:
     image: ${PLANE_MINIO_IMAGE:-adobe/s3mock:latest}
-    command: ["--server.port=9000"]
+    command: ["--http.port=9000"]
     environment:
-      initialBuckets: uploads
-      root: /export
-    volumes: ["plane_minio_data:/export"]
+      root: /s3mockroot
+    volumes: ["plane_minio_data:/s3mockroot"]
     restart: unless-stopped
     networks: [default]
 
