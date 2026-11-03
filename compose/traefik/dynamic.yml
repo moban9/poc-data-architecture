@@ -25,7 +25,7 @@ http:
       service: plane-web
     plane-api:
       entryPoints: [web]
-      rule: 'Host(`plane.{{ default "onendo.cloud" (env "DOMAIN") }}`) && PathPrefix(`/api`)'
+      rule: 'Host(`plane.{{ default "onendo.cloud" (env "DOMAIN") }}`) && (PathPrefix(`/api`) || PathPrefix(`/auth`))'
       service: plane-backend
     plane-admin:
       entryPoints: [web]
