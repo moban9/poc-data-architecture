@@ -24,3 +24,8 @@ jobs:
       - uses: google-github-actions/setup-gcloud@v2
       - name: "${{ inputs.action }} VM"
         run: gcloud compute instances ${{ inputs.action }} lms-poc-vm --zone asia-southeast2-a --quiet
+      - name: "Capture VM IP"
+        if: inputs.action == 'start'
+        run: |
+          gcloud compute instances describe lms-poc-vm --zone asia-southeast2-a \
+            --format="value(status, networkInterfaces[0].accessConfigs[0].natIP)"
