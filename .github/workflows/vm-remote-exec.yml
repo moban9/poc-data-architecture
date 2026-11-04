@@ -22,4 +22,4 @@ jobs:
       - uses: google-github-actions/setup-gcloud@v2
       - name: Run command on VM
         run: |
-          gcloud compute ssh lms-poc-vm --zone asia-southeast2-a --quiet --command "${{ inputs.command }}"
+          gcloud compute ssh ubuntu@lms-poc-vm --zone asia-southeast2-a --quiet --command "${{ inputs.command }}"
