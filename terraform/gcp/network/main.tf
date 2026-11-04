@@ -217,6 +217,14 @@ resource "google_compute_managed_ssl_certificate" "cert" {
       "demo.${var.cert_domain}",
       "bi.${var.cert_domain}",
       "plane.${var.cert_domain}",
+      "trino.${var.cert_domain}",
+      "polaris.${var.cert_domain}",
+      "minio.${var.cert_domain}",
+      "connect.${var.cert_domain}",
+      "lms.${var.cert_domain}",
+      "prometheus.${var.cert_domain}",
+      "alertmanager.${var.cert_domain}",
+      "pushgateway.${var.cert_domain}",
     ]
   }
 }
