@@ -5,11 +5,11 @@ Concrete, copy-pasteable examples.
 ## Bring-up (one node)
 
 ```bash
-cd terraform
+cd terraform/gcp
 cp terraform.tfvars.example terraform.tfvars
-# set project_id, region=asia-southeast2, zone=asia-southeast2-a, tighten allowed_ssh_cidrs
+# set project_id, region=asia-southeast2, cert_domain, tighten the SSH firewall CIDR
 terraform init && terraform plan && terraform apply -auto-approve
-cd ..
+cd ../..
 make deploy      # rsync repo -> VM, docker compose up -d
 make status      # all services healthy
 ```
@@ -21,16 +21,28 @@ WIF auth works end-to-end, no VM, no cost.
 
 ## Run a demo scenario (control panel)
 
+The panel is served through Traefik at `https://demo.<cert_domain>` (the value of
+`cert_domain` in `terraform/gcp/terraform.tfvars`, default `onendo.cloud`). Set it
+once for the examples below:
+
 ```bash
+DOMAIN=onendo.cloud   # match cert_domain
+
 # healthy CDC flow
-curl -s -X POST http://localhost:8001/scenario/healthy | jq
+curl -s -X POST https://demo.$DOMAIN/scenario/healthy | jq
 
 # dirty-data failure (watch dbt tests fail + rows quarantine)
-curl -s -X POST http://localhost:8001/scenario/dirty | jq
+curl -s -X POST https://demo.$DOMAIN/scenario/dirty | jq
 
 # stream per-hop results as they happen
-curl -sN -X POST 'http://localhost:8001/scenario/failure?stream=sse'
+curl -sN -X POST "https://demo.$DOMAIN/scenario/failure?stream=sse"
 ```
+
+Scenario names are `healthy`, `dirty`, `failure`, `incident` (`demo/app.py`). The
+panel is also reachable from the VM over the internal network
+(`http://<vm-ip>:8000` is the LMS API — use `docker compose exec demo ...` or an SSH
+tunnel to `demo:8000` instead). `:8001` on the host is the **ticket-bridge**, not the
+panel.
 
 Expected `healthy` shape (per hop):
 
@@ -70,11 +82,16 @@ Output:
 ## Trigger an incident via the real alert path
 
 ```bash
-# pause the Iceberg sink -> KafkaConnectConnectorFailed alert (2m) -> Alertmanager
+# pause the Iceberg sink -> KafkaConnectConnectorFailed alert (1m) -> Alertmanager
 # -> ticket-bridge -> Plane issue
 curl -s -X PUT http://localhost:8083/connectors/iceberg-sink/pause
 # ... alert fires, ticket auto-opens in Plane
 ```
+
+Repo note: pausing a connector sets it to `PAUSED`, which does not match the
+`KafkaConnectConnectorFailed` rule (`kafka_connect_connector_status{status="failed"} == 1`),
+so this `pause` call will not actually fire that alert — a genuinely failing
+connector is required; stopping the `connect` service instead fires `ServiceDown` (2m).
 
 ## Cost — 1-day demo
 

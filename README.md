@@ -18,8 +18,36 @@ Makefile      init / plan / apply / deploy / status / teardown
 ```
 
 ## Docs
+- **[Manual setup runbook](docs/00-index.md)** — step-by-step operator guide, in
+  bring-up order, written by the team that built each part (infra → stack → pipeline
+  → BI → monitoring → demo). Start here if you are standing this up by hand.
 - [Architecture & diagrams](docs/architecture.md) — Mermaid (full stack, data flow, network)
 - [Examples](docs/examples.md) — bring-up, scenario runs, incident simulation, cost
+
+## Architecture
+
+One VM runs everything; a global external HTTPS load balancer terminates TLS
+(managed cert) and forwards to Traefik on the VM, which routes by hostname to each
+service. Data path:
+
+```
+LMS Postgres ──WAL/pgoutput──▶ Debezium (Kafka Connect)
+    ├─▶ Kafka topic lms.public.loan / .loan_event / .borrower   (Bronze, raw events)
+    └─▶ Iceberg sink ──▶ Polaris catalog ──▶ S3-compatible object store (warehouse)
+                                   │
+                        Trino (catalog: lakehouse)
+                                   │
+                    dbt: stg_* → dim_* → Silver loan/loan_event
+                         └─▶ Gold marts (loan_portfolio, loan_origination_daily,
+                                        loan_event_summary) → Metabase
+                         └─▶ quarantine_loan_* (failed dbt tests, kept visible)
+```
+
+Prometheus scrapes JMX/lag/Postgres/node exporters and dbt-pushed metrics; alert
+rules route through Alertmanager to `ticket-bridge`, which opens a Plane issue.
+
+Full diagrams: [docs/architecture.md](docs/architecture.md). Step-by-step:
+[docs/00-index.md](docs/00-index.md).
 
 ## Cost (1-day demo ≈ $7)
 `e2-standard-8` (8 vCPU/32 GB) $0.268/hr + 100 GB pd-balanced $4/mo. A 1-day run is
@@ -28,19 +56,22 @@ Makefile      init / plan / apply / deploy / status / teardown
 
 ## Bring-up (one node, ~5 min)
 ```bash
-cd terraform && cp terraform.tfvars.example terraform.tfvars   # set project_id, tighten SSH CIDR
+cd terraform/gcp && cp terraform.tfvars.example terraform.tfvars  # set project_id + cert_domain, tighten SSH
 terraform init && terraform plan && terraform apply -auto-approve
-cd .. && make deploy && make status
+cd ../.. && make deploy && make status
 ```
 
+Or follow the [manual setup runbook](docs/00-index.md) for the same steps with the
+verification and failure modes spelled out.
+
 ## What comes up
-- **Main stack** (`compose/docker-compose.yml`): LMS Postgres + LMS API · MinIO ·
-  Polaris · Kafka KRaft · Kafka Connect (Debezium + Iceberg sink) · Trino ·
-  Dagster/dbt · Metabase.
+- **Main stack** (`compose/docker-compose.yml`): LMS Postgres + LMS API · S3-compatible
+  storage (`adobe/s3mock`) · Polaris · Kafka KRaft · Kafka Connect (Debezium + Iceberg
+  sink) · Trino · dbt (one-shot container) · Metabase.
 - **Monitoring + ticketing** (`compose/monitoring.yml`): Prometheus · Alertmanager ·
   Grafana · ticket-bridge · **Plane** (open-source Jira-like) · Pushgateway.
 
-## Demo control panel (`:8001`)
+## Demo control panel (`https://demo.<cert_domain>`)
 FastAPI harness + a self-contained static page. Four scenarios, each runs against the
 real pipeline and streams per-hop results; the page shows an **animated SVG pipeline**
 (LMS → CDC → Bronze → Silver → Gold → BI) with live per-hop status colors.
@@ -76,3 +107,8 @@ yields exactly 5 failures.
 ```bash
 make teardown   # terraform destroy (deletes VM + disk + firewall)
 ```
+
+---
+
+Produced by: Nimbus (infra), Keel (platform), Meridian + Cask (data), Prism (BI),
+Relay (observability), Piston (app + demo) · Reviewed by: Ledger
