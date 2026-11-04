@@ -24,6 +24,11 @@ Reference material, already in the repo: [architecture.md](architecture.md) (Mer
 diagrams of stack, data flow, network) and [examples.md](examples.md) (worked examples
 and cost).
 
+When bronze stops filling — sink `RUNNING` but `committed to 0 table(s)`, or Polaris
+401 `Failed to verify token` after a restart — work through
+[the Bronze CDC runbook](07-cdc-bronze-runbook.md). It also carries the only
+supported verification: inject N loans, watch the bronze count move by N.
+
 ## Before you start — you need
 
 - A GCP project with billing enabled and the free-trial credit intact (the VM is
