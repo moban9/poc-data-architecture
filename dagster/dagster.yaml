@@ -1,0 +1,47 @@
+# DAGSTER_HOME instance config for the LMS POC (mounted at
+# /opt/dagster/dagster_home/dagster.yaml inside the `dagster` and `dagster-daemon`
+# containers).
+#
+# Storage lives in the stack's own `dagster-postgres` service so run history,
+# schedule ticks and sensor state survive container rebuilds — the UI's Runs tab
+# is the audit trail that replaces /home/ubuntu/dbt-schedule.log on the VM.
+telemetry:
+  enabled: false
+
+storage:
+  postgres:
+    postgres_db:
+      username:
+        env: DAGSTER_PG_USER
+      password:
+        env: DAGSTER_PG_PASSWORD
+      hostname:
+        env: DAGSTER_PG_HOST
+      db_name:
+        env: DAGSTER_PG_DB
+      port:
+        env: DAGSTER_PG_PORT
+
+# The dbt pipeline is capped at one in-flight run so a slow run cannot overlap
+# with the next tick — the old cron did the same with a /tmp lock file. Runs are
+# queued (not launched) while the slot is busy, so no tick is silently dropped.
+run_coordinator:
+  module: dagster.core.run_coordinator
+  class: QueuedRunCoordinator
+  config:
+    max_concurrent_runs: 2
+    tag_concurrency_limits:
+      - key: "dagster/concurrency_key"
+        value: "dbt"
+        limit: 1
+
+scheduler:
+  module: dagster.core.scheduler
+  class: DagsterDaemonScheduler
+
+# Keep the instance small on a single POC node.
+retention:
+  schedule:
+    purge_after_days: 30
+  sensor:
+    purge_after_days: 30

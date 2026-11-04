@@ -90,7 +90,11 @@ openssl rand -base64 32     # includes +/= — avoid for URL-embedded values
 | `MINIO_ACCESS_KEY` | S3 access key (must match `MINIO_ROOT_USER`) | `minioadmin` — match root user |
 | `MINIO_SECRET_KEY` | S3 secret (must match `MINIO_ROOT_PASSWORD`) | match root password |
 | `MINIO_BUCKET` | Iceberg base-location bucket | `lakehouse` — keep |
-| `DAGSTER_PG_PASSWORD` | Dagster Postgres password — **no `dagster` service exists in either Compose file** (only `DAGSTER_URL`/`DAGSTER_IMAGE` referenced); currently unused | `openssl rand -hex 16` |
+| `DAGSTER_PG_USER` | Dagster instance Postgres user (`dagster-postgres`) | `dagster` — keep |
+| `DAGSTER_PG_PASSWORD` | Dagster Postgres password (`dagster-postgres`, used via `dagster.yaml` `{env: ...}`) | `openssl rand -hex 16` |
+| `DAGSTER_PG_DB` | Dagster instance database | `dagster` — keep |
+| `DAGSTER_HOST_PORT` | Host port for the Dagster UI (**3000 is taken by Grafana**) | `3001` |
+| `DAGSTER_DBT_CRON` | Cadence of the dbt pipeline schedule (cron syntax, UTC) | `*/2 * * * *` (old cron parity) |
 | `GRAFANA_PASSWORD` | Grafana admin password (used by the `grafana` service in `monitoring.yml`) | `openssl rand -hex 16` |
 | `POSTGRES_IMAGE` | Postgres image pin | `postgres:16` — keep |
 | `POLARIS_IMAGE` | Polaris image pin | `apache/polaris:latest` |
@@ -98,7 +102,7 @@ openssl rand -base64 32     # includes +/= — avoid for URL-embedded values
 | `KAFKA_IMAGE` | Kafka image pin | `apache/kafka:3.8.1` |
 | `CONNECT_IMAGE` | Kafka Connect image pin | `debezium/connect:2.7.3.Final` |
 | `TRINO_IMAGE` | Trino image pin | `trinodb/trino:latest` |
-| `DAGSTER_IMAGE` | Dagster image pin (unused — no dagster service) | `ghcr.io/dagster-io/dagster:latest` |
+| `DAGSTER_IMAGE` | Dagster image tag (built from `../dagster`, not a registry pull — see `dagster/Dockerfile`) | `onendo-dagster:latest` |
 | `METABASE_IMAGE` | Metabase image pin | `metabase/metabase:latest` |
 | `PROMETHEUS_IMAGE` | Prometheus image pin | `prom/prometheus:latest` |
 | `GRAFANA_IMAGE` | Grafana image pin | `grafana/grafana:latest` |
@@ -214,6 +218,9 @@ docker compose -f docker-compose.yml -f monitoring.yml -f traefik.yml up -d --pu
 | `register-connectors` | `${POLARIS_SETUP_IMAGE:-alpine/curl:latest}` | — | — | — | One-shot: PUTs Debezium source + Iceberg sink configs (`restart: "no"`) |
 | `trino` | `${TRINO_IMAGE:-trinodb/trino:latest}` | 8080 | 8080 | `trino.<domain>` → `trino:8080` | SQL engine over the Iceberg catalog |
 | `dbt` | `${DBT_IMAGE:-onendo-dbt:latest}` (build `../dbt`) | — | — | — | One-shot: runs medallion pipeline + pushes metrics (`restart: "no"`) |
+| `dagster-postgres` | `${POSTGRES_IMAGE:-postgres:16}` | 5432 | — | — | Dagster instance metadata (run history, schedule ticks) |
+| `dagster` | `${DAGSTER_IMAGE:-onendo-dagster:latest}` (build `../dagster`) | 3000 | 3001 | `dagster.<domain>` → `dagster:3000` | Dagster webserver: UI + GraphQL |
+| `dagster-daemon` | `${DAGSTER_IMAGE:-onendo-dagster:latest}` (build `../dagster`) | — | — | — | Dagster daemon: ticks `dbt_pipeline_schedule`, launches runs |
 | `duckdb` | `${DUCKDB_IMAGE:-duckdb/duckdb:latest}` | — | — | — | Ad-hoc engine for virtualization demo (`profiles: ["demo"]`) |
 | `metabase` | `${METABASE_IMAGE:-metabase/metabase:latest}` | 3000 | 8085 | `bi.<domain>` → `metabase:3000` | BI dashboards |
 | `node-exporter` | `${NODE_EXPORTER_IMAGE:-prom/node-exporter:latest}` | 9100 | 9100 | — | Host metrics exporter |
@@ -289,6 +296,11 @@ docker compose -f docker-compose.yml -f monitoring.yml -f traefik.yml up -d --pu
   cert (it is **not** a wildcard; see `terraform/gcp/network/main.tf`).
   (`docs/architecture.md` labels only `grafana`/`demo`/`bi`/`plane` "public", but
   the managed cert and the Traefik routers cover all 12 names.)
+- **`dagster.<domain>` (added router, cert SAN pending):** the router exists in
+  `dynamic.yml`, but the managed cert's SAN list does **not** include `dagster`
+  yet, so HTTPS through the LB fails until `terraform/gcp/network/main.tf` gains
+  that SAN (a cert re-issue — architecture change, needs approval). Until then
+  use `http://<vm-ip>:3001`.
 
 ---
 
@@ -308,6 +320,7 @@ docker compose -f docker-compose.yml -f monitoring.yml -f traefik.yml up -d --pu
 | `connect_data` | `connect:/kafka/data` | Connect state |
 | `connect_logs` | `connect:/kafka/logs` | Connect logs |
 | `metabase_data` | `metabase:/metabase-data` | Metabase app DB (`MB_DB_FILE`) |
+| `dagster_pg_data` | `dagster-postgres:/var/lib/postgresql/data` | Dagster run history / schedule ticks |
 | `prometheus_data` | (used by `monitoring.yml` `prometheus:/prometheus`) | TSDB |
 | `grafana_data` | (used by `monitoring.yml` `grafana:/var/lib/grafana`) | Grafana state |
 
@@ -335,6 +348,9 @@ services live in `monitoring.yml`; the volumes are re-declared there.)
 - `./trino/catalog` → `trino:/etc/trino/catalog` (ro) — `lakehouse.properties`.
 - `./demo` → `trino:/demo`, `duckdb:/demo` (ro) — demo SQL.
 - `../dbt` → `dbt:/dbt` — dbt project (built + mounted).
+- `../dbt` → `dagster:/dbt`, `dagster-daemon:/dbt` (rw) — the job shells out to
+  `scripts/run-and-push-metrics.sh` in the same project, so dbt writes `target/`
+  and `logs/` in place exactly as the one-shot service does.
 - `./connect-plugins` → `connect:/kafka/connect/iceberg-sink` — sink plugin.
 - `../monitoring/prometheus/{prometheus.yml,rules}` → `prometheus` (ro).
 - `../monitoring/alertmanager/alertmanager.yml` → `alertmanager` (ro).
@@ -402,6 +418,15 @@ curl -fsS http://localhost:3011/god-mode/ # admin wizard
 
 # dbt (one-shot) — inspect exit status + pushed metrics
 docker compose -f docker-compose.yml logs dbt
+
+# Dagster — UI, code location, and the dbt job/schedule
+curl -fsS http://localhost:3001/server_info            # UI up (host 3001 → container 3000)
+docker compose -f docker-compose.yml logs dagster | tail   # code location loaded, no import errors
+docker compose -f docker-compose.yml logs dagster-daemon | tail  # schedule ticks
+# GraphQL: confirm the job + schedule exist, and read the last run's status
+# (jobs/schedules hang off repositories, not off the location entry)
+curl -fsS http://localhost:3001/graphql -H 'Content-Type: application/json' -d '{"query":"{ workspaceOrError { ... on Workspace { locationEntries { name locationOrLoadError { ... on RepositoryLocation { repositories { name jobs { name } schedules { name cronSchedule scheduleState { status } } } } } } } } }"}'
+curl -fsS http://localhost:3001/graphql -H 'Content-Type: application/json' -d '{"query":"{ runsOrError(limit: 3) { ... on Runs { results { runId jobName status } } } }"}'
 ```
 
 Traefik routing can be verified by hitting a host through the proxy, e.g.
@@ -429,6 +454,10 @@ One-shot jobs use `restart: "no"` (`polaris-setup`, `register-connectors`,
   (`service_completed_successfully`); **has a healthcheck**
   (`curl /v1/info`).
 - `dbt` → `trino` (`service_healthy`).
+- `dagster` → `dagster-postgres` (`service_healthy`), `trino` (`service_healthy`).
+- `dagster-daemon` → `dagster-postgres` (`service_healthy`), `dagster`
+  (`service_started`), `trino` (`service_healthy`). The daemon is what ticks
+  `dbt_pipeline_schedule` — without it the schedule never fires.
 - `metabase` → `trino`.
 - `prometheus` → `alertmanager`, `pushgateway`.
 - `kafka-lag-exporter` → `kafka`.
@@ -440,7 +469,8 @@ One-shot jobs use `restart: "no"` (`polaris-setup`, `register-connectors`,
 - `plane-web` / `plane-admin` → `plane`.
 
 **Healthchecks** (used by `service_healthy`): `lms-postgres` (`pg_isready`),
-`kafka` (`kafka-topics.sh --list`), `trino` (`curl /v1/info`).
+`kafka` (`kafka-topics.sh --list`), `trino` (`curl /v1/info`), `dagster`
+(`python -c urllib /server_info`), `dagster-postgres` (`pg_isready`).
 
 **After a VM reboot:** all `unless-stopped` services restart automatically
 (including Traefik). The one-shot jobs (`polaris-setup`, `register-connectors`,

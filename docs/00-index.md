@@ -74,9 +74,11 @@ These are real inconsistencies found while writing these docs; each is called ou
 the relevant step. None block a demo bring-up.
 
 - `compose/.env.example` defines `DAGSTER_IMAGE` / `DAGSTER_PG_PASSWORD`, and the
-  demo panel probes `DAGSTER_URL`, but neither compose file defines a `dagster`
-  service. dbt runs as a one-shot container instead (`compose/docker-compose.yml` →
-  `dbt`).
+  demo panel probes `DAGSTER_URL`. A `dagster` service now exists
+  (`compose/docker-compose.yml` → `dagster` + `dagster-daemon` + `dagster-postgres`,
+  built from `dagster/Dockerfile`) and owns the dbt run via
+  `dbt_pipeline_schedule`; the one-shot `dbt` service and the VM cron are kept
+  until the schedule is verified in the UI, then retired.
 - `Makefile`'s `deploy` target does not pass `--env-file monitoring.env`, so
   monitoring-only variables are not applied on that path.
 - `compose/trino/catalog/README.md` mentions a `bucket-setup` service that does not

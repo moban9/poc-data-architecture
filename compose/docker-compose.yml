@@ -317,6 +317,112 @@ services:
         condition: service_healthy
     restart: "no"
 
+  # ── Orchestration: Dagster owns the dbt run ────────────────────────────────
+  # Replaces the 2-minute cron on the VM (`scripts/dbt-schedule.sh` → `docker
+  # compose run --rm dbt`) with a scheduled Dagster job. ADDITIVE for now: the
+  # `dbt` one-shot service above and the cron are left in place until the
+  # schedule is observed firing twice in the UI, then the cron line is dropped.
+  #
+  # UI:      http://<vm>:${DAGSTER_HOST_PORT:-3001}   (container port 3000)
+  #          Host port 3000 is taken by Grafana, so the UI is published on 3001
+  #          and also routed at http://dagster.<DOMAIN> via Traefik.
+  # Storage: Dagster's own Postgres (run history / schedule ticks) so the Runs
+  #          tab survives container rebuilds.
+  dagster-postgres:
+    restart: unless-stopped
+    image: ${POSTGRES_IMAGE:-postgres:16}
+    environment:
+      POSTGRES_USER: ${DAGSTER_PG_USER:-dagster}
+      POSTGRES_PASSWORD: ${DAGSTER_PG_PASSWORD:-CHANGE_ME_dagster}
+      POSTGRES_DB: ${DAGSTER_PG_DB:-dagster}
+    mem_limit: 256m
+    cpus: 0.25
+    volumes:
+      - dagster_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DAGSTER_PG_USER:-dagster} -d ${DAGSTER_PG_DB:-dagster}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Webserver (UI + GraphQL). Named `dagster` on purpose: the demo panel already
+  # probes DAGSTER_URL=http://dagster:3000 and Traefik targets the same name.
+  dagster:
+    restart: unless-stopped
+    build:
+      context: ../dagster
+      dockerfile: Dockerfile
+    image: ${DAGSTER_IMAGE:-onendo-dagster:latest}
+    command:
+      - dagster-webserver
+      - -h
+      - 0.0.0.0
+      - -p
+      - "3000"
+      - -w
+      - /opt/dagster/dagster_home/workspace.yaml
+    environment: &dagster-env
+      DAGSTER_HOME: /opt/dagster/dagster_home
+      DAGSTER_PG_HOST: dagster-postgres
+      DAGSTER_PG_PORT: "5432"
+      DAGSTER_PG_USER: ${DAGSTER_PG_USER:-dagster}
+      DAGSTER_PG_PASSWORD: ${DAGSTER_PG_PASSWORD:-CHANGE_ME_dagster}
+      DAGSTER_PG_DB: ${DAGSTER_PG_DB:-dagster}
+      # dbt execution context — identical to the one-shot `dbt` service above.
+      DBT_PROJECT_DIR: /dbt
+      DBT_PROFILES_DIR: /dbt
+      TRINO_HOST: trino
+      PUSHGATEWAY_URL: http://pushgateway:9091
+      DAGSTER_DBT_CRON: ${DAGSTER_DBT_CRON:-*/2 * * * *}
+    ports:
+      # Host 3000 belongs to Grafana; 3001 is free on the POC node.
+      - "${DAGSTER_HOST_PORT:-3001}:3000"
+    volumes:
+      # RW: dbt writes target/ (run_results.json) and logs/ in place, exactly
+      # like the one-shot service.
+      - ../dbt:/dbt
+    depends_on:
+      dagster-postgres:
+        condition: service_healthy
+      trino:
+        condition: service_healthy
+    mem_limit: 1g
+    cpus: 0.5
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3000/server_info', timeout=5)"
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  # Daemon: ticks the schedule (a schedule with no daemon never fires) and
+  # launches runs. Same image, same code location, same dbt mount.
+  dagster-daemon:
+    restart: unless-stopped
+    build:
+      context: ../dagster
+      dockerfile: Dockerfile
+    image: ${DAGSTER_IMAGE:-onendo-dagster:latest}
+    command:
+      - dagster-daemon
+      - run
+      - -w
+      - /opt/dagster/dagster_home/workspace.yaml
+    environment: *dagster-env
+    volumes:
+      - ../dbt:/dbt
+    depends_on:
+      dagster-postgres:
+        condition: service_healthy
+      dagster:
+        condition: service_started
+      trino:
+        condition: service_healthy
+    mem_limit: 768m
+    cpus: 0.5
+
   # Ad-hoc engine for the data-virtualization demo (profiles: demo).
   # Run it:  docker compose run --rm duckdb
   duckdb:
@@ -374,5 +480,6 @@ volumes:
   connect_data:
   connect_logs:
   metabase_data:
+  dagster_pg_data:
   prometheus_data:
   grafana_data:

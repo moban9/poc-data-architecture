@@ -1,0 +1,14 @@
+# Pinned so the orchestrator image is reproducible — the running stack's dbt
+# behaviour must not change under us between rebuilds.
+#   dagster 1.13.28  ── dagster-webserver 1.13.28 (same minor, required)
+#   dagster-postgres 0.29.28 (matches dagster 1.13.x)
+#   dbt-trino 1.11.0     (same resolution as the unpinned `dbt` image — pins dbt-core>=1.11.2)
+dagster==1.13.28
+dagster-webserver==1.13.28
+dagster-postgres==0.29.28
+# dagster-postgres 0.29 builds `postgresql+psycopg` URLs (psycopg 3) even though
+# its declared dependency is psycopg2-binary — install BOTH or instance startup
+# dies with "No module named 'psycopg'".
+psycopg[binary]==3.3.8
+psycopg2-binary==2.9.10
+dbt-trino==1.11.0

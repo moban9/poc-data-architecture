@@ -63,6 +63,13 @@ http:
       entryPoints: [web]
       rule: 'Host(`pushgateway.{{ default "onendo.cloud" (env "DOMAIN") }}`)'
       service: pushgateway
+    # Dagster UI (orchestrator). NOTE: reachable over HTTPS only once the
+    # Google-managed cert's SAN list includes dagster.<DOMAIN> (terraform
+    # network module); until then use http://<vm-ip>:3001.
+    dagster:
+      entryPoints: [web]
+      rule: 'Host(`dagster.{{ default "onendo.cloud" (env "DOMAIN") }}`)'
+      service: dagster
 
   services:
     grafana:
@@ -121,3 +128,7 @@ http:
       loadBalancer:
         servers:
           - url: http://pushgateway:9091
+    dagster:
+      loadBalancer:
+        servers:
+          - url: http://dagster:3000

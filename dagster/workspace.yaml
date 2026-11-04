@@ -1,0 +1,7 @@
+# Code location(s) served by the `dagster` webserver and `dagster-daemon`
+# containers. Both roles read this file from $DAGSTER_HOME.
+load_from:
+  - python_file:
+      location_name: lms_dbt
+      relative_path: /dagster/code/definitions.py
+      working_directory: /dagster/code

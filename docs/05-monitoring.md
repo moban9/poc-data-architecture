@@ -297,10 +297,15 @@ on `connect`/`minio: service_started` + `polaris-setup: service_completed_succes
    docker compose -f docker-compose.yml -f monitoring.yml -f traefik.yml run --rm dbt
    ```
 
-4. **dbt cron schedule** — `scripts/dbt-schedule.sh` says it is "scheduled by cron on
-   the VM", but the repo contains **no crontab entry** and nothing installs it. After
-   a VM rebuild you must add it yourself (e.g. a `crontab -e` line pointing at
-   `/home/ubuntu/poc/scripts/dbt-schedule.sh`) — the repo only ships the script.
+4. **dbt schedule** — the 2-minute cron (`scripts/dbt-schedule.sh` →
+   `docker compose run --rm dbt`) is being superseded by the Dagster schedule
+   `dbt_pipeline_schedule` (`dagster/code/definitions.py`, cadence from
+   `DAGSTER_DBT_CRON`, default `*/2 * * * *`). The cron line is **still installed**
+   on the VM and must be removed (`crontab -e`, drop the `*/2 * * * *` entry) only
+   after a scheduled Dagster run is observed SUCCESS in the UI at
+   `http://<vm>:3001`. Until then a slow dbt run is serialised by the `dbt`
+   concurrency tag (`dagster/dagster.yaml`), so the two triggers do not overlap —
+   the cron's own `/tmp/dbt-schedule.lock` still covers the cron side.
 
 5. **systemd unit** — `scripts/poc-stack.service` ships in the repo but is **not
    installed or enabled** by `bootstrap.sh` or any workflow. To get systemd-managed
