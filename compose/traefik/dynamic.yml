@@ -31,6 +31,38 @@ http:
       entryPoints: [web]
       rule: 'Host(`plane.{{ default "onendo.cloud" (env "DOMAIN") }}`) && PathPrefix(`/god-mode`)'
       service: plane-admin
+    trino:
+      entryPoints: [web]
+      rule: 'Host(`trino.{{ default "onendo.cloud" (env "DOMAIN") }}`)'
+      service: trino
+    polaris:
+      entryPoints: [web]
+      rule: 'Host(`polaris.{{ default "onendo.cloud" (env "DOMAIN") }}`)'
+      service: polaris
+    minio:
+      entryPoints: [web]
+      rule: 'Host(`minio.{{ default "onendo.cloud" (env "DOMAIN") }}`)'
+      service: minio
+    connect:
+      entryPoints: [web]
+      rule: 'Host(`connect.{{ default "onendo.cloud" (env "DOMAIN") }}`)'
+      service: connect
+    lms:
+      entryPoints: [web]
+      rule: 'Host(`lms.{{ default "onendo.cloud" (env "DOMAIN") }}`)'
+      service: lms
+    prometheus:
+      entryPoints: [web]
+      rule: 'Host(`prometheus.{{ default "onendo.cloud" (env "DOMAIN") }}`)'
+      service: prometheus
+    alertmanager:
+      entryPoints: [web]
+      rule: 'Host(`alertmanager.{{ default "onendo.cloud" (env "DOMAIN") }}`)'
+      service: alertmanager
+    pushgateway:
+      entryPoints: [web]
+      rule: 'Host(`pushgateway.{{ default "onendo.cloud" (env "DOMAIN") }}`)'
+      service: pushgateway
 
   services:
     grafana:
@@ -57,3 +89,35 @@ http:
       loadBalancer:
         servers:
           - url: http://plane-admin:3000
+    trino:
+      loadBalancer:
+        servers:
+          - url: http://trino:8080
+    polaris:
+      loadBalancer:
+        servers:
+          - url: http://polaris:8181
+    minio:
+      loadBalancer:
+        servers:
+          - url: http://minio:9000
+    connect:
+      loadBalancer:
+        servers:
+          - url: http://connect:8083
+    lms:
+      loadBalancer:
+        servers:
+          - url: http://lms-api:8000
+    prometheus:
+      loadBalancer:
+        servers:
+          - url: http://prometheus:9090
+    alertmanager:
+      loadBalancer:
+        servers:
+          - url: http://alertmanager:9093
+    pushgateway:
+      loadBalancer:
+        servers:
+          - url: http://pushgateway:9091
