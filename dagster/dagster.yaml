@@ -11,16 +11,12 @@ telemetry:
 storage:
   postgres:
     postgres_db:
-      username:
-        env: DAGSTER_PG_USER
-      password:
-        env: DAGSTER_PG_PASSWORD
-      hostname:
-        env: DAGSTER_PG_HOST
-      db_name:
-        env: DAGSTER_PG_DB
-      port:
-        env: DAGSTER_PG_PORT
+      # dagster-postgres 0.29 builds a postgresql+psycopg (psycopg3) URL from the
+      # individual fields, and psycopg3 breaks Dagster's NOTIFY parameter binding
+      # (postgres logs: `syntax error at or near "$1"` on `NOTIFY run_events`).
+      # Force the psycopg2 driver via an explicit URL.
+      postgres_url:
+        env: DAGSTER_PG_URL
 
 # The dbt pipeline is capped at one in-flight run so a slow run cannot overlap
 # with the next tick — the old cron did the same with a /tmp lock file. Runs are

@@ -387,6 +387,9 @@ services:
       DAGSTER_PG_USER: ${DAGSTER_PG_USER:-dagster}
       DAGSTER_PG_PASSWORD: ${DAGSTER_PG_PASSWORD:-CHANGE_ME_dagster}
       DAGSTER_PG_DB: ${DAGSTER_PG_DB:-dagster}
+      # Explicit psycopg2 URL — dagster-postgres 0.29 otherwise builds a
+      # postgresql+psycopg (psycopg3) URL that breaks NOTIFY binding.
+      DAGSTER_PG_URL: postgresql+psycopg2://${DAGSTER_PG_USER:-dagster}:${DAGSTER_PG_PASSWORD:-CHANGE_ME_dagster}@dagster-postgres:5432/${DAGSTER_PG_DB:-dagster}
       # dbt execution context — identical to the one-shot `dbt` service above.
       DBT_PROJECT_DIR: /dbt
       DBT_PROFILES_DIR: /dbt
