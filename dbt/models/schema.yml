@@ -102,18 +102,33 @@ models:
         description: "Principal outstanding (principal - payments received), floored at 0."
 
   - name: loan_delinquency
-    description: "Gold: disbursed loans bucketed by days past due (30/60/90+), with NPL rate."
+    description: >
+      Gold: disbursed loans bucketed by days past due, with charge-off as a
+      first-class state and a portfolio-level NPL rate.
     columns:
       - name: delinquency_bucket
-        description: "current / 30-59 / 60-89 / 90+ (days past due)."
+        description: "current / 30-59 / 60-89 / 90-179 / charge-off (days past due)."
         tests:
           - not_null
+          - accepted_values:
+              arguments:
+                values: ["current", "30-59", "60-89", "90-179", "charge-off"]
+                quote: true
+          - unique
       - name: loan_count
         description: "Number of disbursed loans in the bucket."
+        tests:
+          - not_null
       - name: outstanding_balance
-        description: "Outstanding balance of loans in the bucket."
+        description: "Outstanding balance of loans in the bucket (floored at 0)."
+        tests:
+          - not_null
       - name: npl_rate
-        description: "Portfolio NPL rate = 90+ loans / total disbursed loans."
+        description: >
+          Portfolio NPL rate = (90-179 + charge-off) loans / total disbursed
+          loans; identical on every row (portfolio-level KPI).
+        tests:
+          - not_null
 
   - name: loan_event_daily
     description: "Gold: daily loan event rollup (counts and amounts per calendar day)."

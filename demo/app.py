@@ -20,8 +20,9 @@ Endpoints
   POST /scenario/{name}[?count=N&mode=clean|dirty|mixed] → run a scenario (JSON)
   POST /scenario/{name}?stream=sse   (or Accept: text/event-stream) → SSE
       · data-injection scenarios (healthy/dirty) call the real LMS /generate API
+      · the npl-book scenario calls the real LMS /scenarios/loan-book API
 
-Scenarios: dirty, healthy, failure, incident.
+Scenarios: dirty, healthy, failure, incident, npl-book.
 
 Environment (all optional — unreachable/absent → simulated)
 -----------------------------------------------------------
@@ -150,6 +151,24 @@ SCENARIOS = {
             "bi":     {"status": "skipped"},
         },
     },
+    "npl-book": {
+        "title": "NPL loan book (all delinquency buckets)",
+        "status": "success",
+        "hops": {
+            "lms":    {"latency": 60,    "status": "success", "metric": None,
+                       "message": "Loan book written across 5 delinquency buckets"},
+            "cdc":    {"latency": 320,   "status": "success", "metric": "5 buckets",
+                       "message": "Debezium captured disbursement + payment events for every bucket"},
+            "kafka":  {"latency": 210,   "status": "success", "metric": "5 buckets",
+                       "message": "Iceberg Bronze ingest OK"},
+            "silver": {"latency": 2600,  "status": "success", "metric": "0 failed",
+                       "message": "dbt Silver: clean rows, 0 DQ failures"},
+            "gold":   {"latency": 1900,  "status": "success", "metric": "5 buckets",
+                       "message": "dbt Gold loan_delinquency populated: current/30-59/60-89/90-179/charge-off"},
+            "bi":     {"latency": 160,   "status": "success", "metric": "5 buckets",
+                       "message": "Trino → Metabase NPL dashboard refreshed"},
+        },
+    },
 }
 
 # External systems the harness may reach (target URLs from env).
@@ -211,6 +230,11 @@ async def _probe_systems() -> dict:
 DATA_MODES = {"healthy": "clean", "dirty": "dirty"}
 DEFAULT_INJECT_COUNT = 10000
 
+# The npl-book scenario drives the real LMS /scenarios/loan-book endpoint (a
+# deterministic loan book that populates every dbt Gold delinquency bucket).
+NPL_BOOK_SCENARIO = "npl-book"
+NPL_DEFAULT_PER_BUCKET = 5
+
 
 def _parse_int(value) -> int | None:
     if value is None or value == "":
@@ -248,6 +272,40 @@ async def _inject_lms(count: int, mode: str) -> dict:
     return {
         "ok": True,
         "count": injected if injected is not None else count,
+        "error": None,
+    }
+
+
+def _lms_loan_book(n_per_bucket: int) -> dict:
+    """POST {LMS_API_URL}/scenarios/loan-book → parsed JSON body."""
+    base = _url("LMS_API_URL")
+    url = f"{base}/scenarios/loan-book"
+    req = urllib.request.Request(
+        url,
+        data=json.dumps({"n_per_bucket": n_per_bucket}).encode(),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=30) as r:
+        return json.load(r)
+
+
+async def _inject_loan_book(n_per_bucket: int) -> dict:
+    """Call the real LMS /scenarios/loan-book endpoint; return {ok, ...}."""
+    try:
+        resp = await asyncio.to_thread(_lms_loan_book, n_per_bucket)
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "n_per_bucket": n_per_bucket, "error": str(exc)}
+
+    created = resp.get("created_loans") if isinstance(resp, dict) else None
+    payments = resp.get("payments") if isinstance(resp, dict) else None
+    per_bucket = resp.get("per_bucket") if isinstance(resp, dict) else None
+    return {
+        "ok": True,
+        "n_per_bucket": n_per_bucket,
+        "created_loans": created,
+        "payments": payments,
+        "per_bucket": per_bucket,
         "error": None,
     }
 
@@ -349,7 +407,9 @@ async def generate(name: str, count: int | None = None, mode: str | None = None)
 
     Data-injection scenarios (healthy/dirty) replace the simulated source write
     with a real call to the LMS ``/generate`` endpoint (POST, ``count`` + ``mode``
-    params). Every other hop — and the failure/incident scenarios — are unchanged.
+    params). The ``npl-book`` scenario calls the real LMS ``/scenarios/loan-book``
+    endpoint (POST, ``count`` = loans per delinquency bucket). Every other hop —
+    and the failure/incident scenarios — are unchanged.
     """
     scenario = SCENARIOS[name]
     run_id = str(uuid.uuid4())
@@ -400,7 +460,33 @@ async def generate(name: str, count: int | None = None, mode: str | None = None)
         metric = cfg.get("metric")
 
         # Source hop of a data-injection scenario → real LMS /generate.
-        if hop["id"] == "lms" and inject_mode is not None:
+        if hop["id"] == "lms" and name == NPL_BOOK_SCENARIO:
+            n_per_bucket = max(1, count) if count is not None else NPL_DEFAULT_PER_BUCKET
+            result = await _inject_loan_book(n_per_bucket)
+            if result["ok"] and result["created_loans"] is not None:
+                simulated = False
+                buckets = result["per_bucket"] or {}
+                injected = {
+                    "count": result["created_loans"],
+                    "mode": "loan-book",
+                    "real": True,
+                    "payments": result["payments"],
+                    "per_bucket": buckets,
+                }
+                metric = f"{result['created_loans']:,} loans"
+                message = (
+                    f"LMS /scenarios/loan-book: {result['created_loans']} loans, "
+                    f"{result['payments']} payments across {len(buckets)} buckets"
+                )
+            else:
+                # Surface the real error: no fabricated metrics, hop shows warning.
+                final_status = "warning"
+                metric = None
+                message = (
+                    f"LMS /scenarios/loan-book unreachable "
+                    f"({result.get('error')}) — nothing injected"
+                )
+        elif hop["id"] == "lms" and inject_mode is not None:
             if inject_count > 0:
                 result = await _inject_lms(inject_count, inject_mode)
                 if result["ok"]:

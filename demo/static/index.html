@@ -200,7 +200,25 @@
   <button class="inject-btn" id="inject-btn">💉 Inject Data</button>
 </section>
 
+<section class="inject-panel" id="npl-panel">
+  <div class="inject-head">
+    <span class="glyph">📉</span>
+    <div>
+      <div class="name">NPL Loan Book</div>
+      <div class="desc">POST to LMS /scenarios/loan-book — every delinquency bucket</div>
+    </div>
+  </div>
+  <label class="field">
+    <span>Loans per bucket</span>
+    <input type="number" id="npl-count" value="5" min="1" step="1">
+  </label>
+  <button class="inject-btn" id="npl-btn">📉 Generate NPL book</button>
+</section>
+
 <section class="scenarios" id="scenarios">
+  <button class="scenario" data-scenario="npl-book">
+    <div class="glyph">📉</div><div class="name">NPL Book</div><div class="desc">Deterministic loans in every delinquency bucket (on-time → charge-off)</div>
+  </button>
   <button class="scenario" data-scenario="failure">
     <div class="glyph">❌</div><div class="name">Failure</div><div class="desc">Iceberg sink commit fails, pipeline halts</div>
   </button>
@@ -254,7 +272,9 @@ const buttons = $$(".scenario");
 const injectBtn = $("#inject-btn");
 const injectCount = $("#inject-count");
 const injectMode = $("#inject-mode");
-const allButtons = () => [...buttons, injectBtn];
+const nplBtn = $("#npl-btn");
+const nplCount = $("#npl-count");
+const allButtons = () => [...buttons, injectBtn, nplBtn];
 
 let running = false;
 
@@ -399,6 +419,11 @@ function runInject() {
   runScenario(scenario, { count: count || null, mode });
 }
 
+function runNplBook() {
+  const count = nplCount.value.trim();
+  runScenario("npl-book", { count: count || null });
+}
+
 // ── Scenario runner (SSE via fetch stream) ─────────────────────
 async function runScenario(name, params) {
   if (running) return;
@@ -513,6 +538,7 @@ async function runJSON(name, params) {
 
 buttons.forEach(b => b.addEventListener("click", () => runScenario(b.dataset.scenario)));
 injectBtn.addEventListener("click", runInject);
+nplBtn.addEventListener("click", runNplBook);
 
 layout();
 renderTargets(null);

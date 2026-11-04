@@ -285,7 +285,7 @@ Real schema/table names (from `dbt/models/sources.yml`, `dbt_project.yml`, model
 |---|---|
 | `bronze` | `loan`, `loan_event`, `borrower` (CDC append-only) + seeds `dirty_data`, `borrowers` |
 | `silver` | `stg_loan`, `loan`, `loan_event`, `dim_borrower` (+ per-rule `quarantine_loan_*` models) |
-| `gold` | `loan_portfolio`, `loan_origination_daily`, `loan_event_summary` |
+| `gold` | `loan_portfolio_summary`, `loan_event_daily`, `loan_delinquency` |
 | `quarantine_lms` | `quarantine_lms` |
 
 Verification SELECTs (CLI documented in-repo; if the CLI hits the known JMX javaagent port conflict, use the HTTP API helper `dbt/scripts/trino_query.py` instead):
@@ -295,7 +295,7 @@ docker compose exec trino trino --execute "SHOW SCHEMAS IN lakehouse"
 docker compose exec trino trino --execute "SHOW TABLES IN lakehouse.bronze"
 docker compose exec trino trino --execute "SELECT count(*) FROM lakehouse.bronze.loan"
 docker compose exec trino trino --execute "SELECT * FROM lakehouse.bronze.loan LIMIT 5"
-docker compose exec trino trino --execute "SELECT currency, count(*) FROM lakehouse.gold.loan_portfolio GROUP BY currency"
+docker compose exec trino trino --execute "SELECT loan_status, loan_type, loan_count FROM lakehouse.gold.loan_portfolio_summary ORDER BY loan_status, loan_type"
 ```
 
 HTTP API equivalent (stdlib-only, no CLI):
@@ -328,9 +328,9 @@ Models by layer (grain/purpose, one line each):
 - **`loan`** (silver) — CLEAN loan table: the passing-only complement of `stg_loan` (anti-join of the 5 DQ predicates).
 - **`loan_event`** (silver) — passthrough of Bronze `loan_event` (`id`, `loan_id`, `event_type`, `occurred_at`).
 - **`quarantine_loan_*`** (silver, 5 models) — per-rule isolation; each `post_hook` appends violating rows to quarantine BEFORE the clean `loan` builds.
-- **`loan_portfolio`** (gold) — per-currency portfolio roll-up (`currency`, `loan_count`, `total_amount`, `avg_amount`).
-- **`loan_origination_daily`** (gold) — daily origination volume (`origination_date`, `loan_count`, `total_amount`).
-- **`loan_event_summary`** (gold) — event activity by type (`event_type`, `event_count`, `distinct_loans`).
+- **`loan_portfolio_summary`** (gold) — portfolio roll-up grouped by derived `loan_status` (originated/disbursed/repaying) × `loan_type` tier (micro/small/medium/large); columns `loan_count`, `total_principal`, `avg_amount`, `outstanding_balance`.
+- **`loan_event_daily`** (gold) — daily event rollup (`event_date`, `total_events`, origination/disbursement/payment counts + amounts).
+- **`loan_delinquency`** (gold) — disbursed loans bucketed by days past due: `current`, `30-59`, `60-89`, `90-179`, `charge-off` (≥180 days); one row per bucket with `loan_count`, `outstanding_balance`, and portfolio `npl_rate` = (90-179 + charge-off) / total disbursed loans.
 - **`quarantine`** — `lakehouse.quarantine_lms.quarantine_lms`, 11-column append-only DQ table (uuid PK, layer, target_table, rule, rule_type, offending_row, error_detail, source, run_id, quarantined_at, _ingested_at).
 
 Exact run commands (from `dbt/README.md` and the Compose service):
@@ -371,7 +371,7 @@ Expected dirty-demo outcome: 5 rows in `quarantine_lms` (one per rule), `silver.
 7. **Messages flowing** — `kafka-console-consumer` on `lms.public.loan` shows Debezium JSON envelopes.
 8. **Bronze tables created** — `docker compose exec trino trino --execute "SHOW TABLES IN lakehouse.bronze"` lists `loan`, `loan_event`, `borrower`; `SELECT count(*) FROM lakehouse.bronze.loan` > 0.
 9. **dbt run succeeds** — `sh dbt/scripts/run-and-push-metrics.sh` exits 0 and prints `dbt_test_failures=N dbt_tests_total=N quarantine_rows_total=N`.
-10. **Silver/Gold tables exist** — `SHOW TABLES IN lakehouse.silver` (`loan`, `loan_event`, `dim_borrower`, `stg_loan`) and `lakehouse.gold` (`loan_portfolio`, `loan_origination_daily`, `loan_event_summary`).
+10. **Silver/Gold tables exist** — `SHOW TABLES IN lakehouse.silver` (`loan`, `loan_event`, `dim_borrower`, `stg_loan`) and `lakehouse.gold` (`loan_portfolio_summary`, `loan_event_daily`, `loan_delinquency`).
 11. **Quarantine populated** — `SELECT count(*) FROM lakehouse.quarantine_lms.quarantine_lms` reflects quarantined rows (5 in the dirty demo).
 12. **Metrics pushed** — `curl -s http://pushgateway:9091/metrics | grep -E 'dbt_run_success|quarantine_rows_total'` shows non-empty values.
 

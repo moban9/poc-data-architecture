@@ -38,8 +38,8 @@ LMS Postgres ──WAL/pgoutput──▶ Debezium (Kafka Connect)
                         Trino (catalog: lakehouse)
                                    │
                     dbt: stg_* → dim_* → Silver loan/loan_event
-                         └─▶ Gold marts (loan_portfolio, loan_origination_daily,
-                                        loan_event_summary) → Metabase
+                         └─▶ Gold marts (loan_portfolio_summary, loan_event_daily,
+                                        loan_delinquency) → Metabase
                          └─▶ quarantine_loan_* (failed dbt tests, kept visible)
 ```
 

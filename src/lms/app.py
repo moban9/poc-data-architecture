@@ -13,6 +13,8 @@ Endpoints
   POST /generate?count=N&mode=...   → insert N loans (+ events) across the 3 tables
   POST /loans/{loan_id}/disburse    → record a disbursement event for a loan
   POST /payments                    → record a payment event for a loan
+  POST /scenarios/loan-book         → create loans with controlled payment histories
+                                      so every dbt Gold delinquency bucket is populated
 
 Modes for /generate
 -------------------
@@ -91,6 +93,14 @@ class PaymentRequest(BaseModel):
     occurred_at: Optional[datetime] = None
 
 
+class LoanBookRequest(BaseModel):
+    """Request body for POST /scenarios/loan-book: how many loans to create per
+    delinquency bucket. Generates new ids every call and never deletes rows, so
+    repeated calls simply add more data (safe/idempotent-ish)."""
+
+    n_per_bucket: int = Field(default=1, ge=1, le=100_000)
+
+
 # ─────────────────────────── helpers ────────────────────────────────────────
 
 def _new_id(prefix: str) -> str:
@@ -165,6 +175,90 @@ def _make_loan_unit(loan_id: str, dirty_mode: Optional[str] = None):
     return loan, events
 
 
+# ─────────────────────────── NPL / delinquency loan book ────────────────────
+#
+# Deterministic payment-history buckets for POST /scenarios/loan-book. Each
+# bucket's `days_since_payment` is the age of the most recent payment relative
+# to `now`, which is the as-of date the dbt Gold `loan_delinquency` model
+# derives from the dataset's max event timestamp. `gold_bucket` is the bucket
+# Gold (`gold.loan_delinquency`) assigns: current / 30-59 / 60-89 / 90-179 /
+# charge-off — these `gold_bucket` values are the accepted_values the dbt tests
+# enforce, so they must stay in lockstep with that model.
+
+NPL_BUCKETS = {
+    "on_time":      {"label": "current",     "days_since_payment": 5,   "gold_bucket": "current"},
+    "dpd_30_59":    {"label": "30-59",       "days_since_payment": 45,  "gold_bucket": "30-59"},
+    "dpd_60_89":    {"label": "60-89",       "days_since_payment": 75,  "gold_bucket": "60-89"},
+    "dpd_90_plus":  {"label": "90+",         "days_since_payment": 120, "gold_bucket": "90-179"},
+    "charge_off":   {"label": "charge-off",  "days_since_payment": 200, "gold_bucket": "charge-off"},
+}
+
+
+def _dpd_bucket(days: int) -> str:
+    """Map days-past-due to the Gold ``loan_delinquency`` bucket (pure helper)."""
+    if days < 30:
+        return "current"
+    if days < 60:
+        return "30-59"
+    if days < 90:
+        return "60-89"
+    if days < 180:
+        return "90-179"
+    return "charge-off"
+
+
+def _loan_book_unit(now: datetime, bucket: str) -> tuple[dict, list[dict]]:
+    """Build one disbursed loan + a deterministic payment history for ``bucket``.
+
+    Pure function (no DB): the most recent payment is exactly
+    ``NPL_BUCKETS[bucket]["days_since_payment"]`` days before ``now``, the
+    disbursement precedes its payments, and every instalment is less than the
+    principal so the outstanding balance is always > 0. ``now`` must be
+    timezone-aware UTC.
+    """
+    spec = NPL_BUCKETS[bucket]
+    amount = _random_amount()
+    currency = _random_currency()
+    borrower_id = _random_borrower_id()
+    loan_id = _new_id("L")
+
+    days = spec["days_since_payment"]
+    origination = now - timedelta(days=days + 365)
+    disbursed_at = origination + timedelta(days=1)
+
+    loan = {
+        "id": loan_id,
+        "amount": amount,
+        "currency": currency,
+        "origination_date": origination.date().isoformat(),
+        "borrower_id": borrower_id,
+    }
+
+    events = [
+        {"id": _new_id("E"), "loan_id": loan_id, "event_type": "origination",
+         "amount": None, "occurred_at": origination},
+        {"id": _new_id("E"), "loan_id": loan_id, "event_type": "disbursement",
+         "amount": amount, "occurred_at": disbursed_at},
+    ]
+
+    # Monthly instalments (~1/24th of principal each) ending at the bucket's
+    # target "last paid" timestamp. Total paid stays well under principal, so
+    # outstanding > 0 for every bucket (including the 90-179 / charge-off loans).
+    instalment = round(amount / 24.0, 2)
+    last_paid_at = now - timedelta(days=days)
+    cursor = disbursed_at + timedelta(days=30)
+    while cursor < last_paid_at:
+        events.append({"id": _new_id("E"), "loan_id": loan_id,
+                       "event_type": "payment", "amount": instalment,
+                       "occurred_at": cursor})
+        cursor += timedelta(days=30)
+    events.append({"id": _new_id("E"), "loan_id": loan_id,
+                   "event_type": "payment", "amount": instalment,
+                   "occurred_at": last_paid_at})
+
+    return loan, events
+
+
 def ensure_borrowers(db: Session) -> int:
     """Idempotently insert the four valid borrowers (B-1001..B-1004)."""
     rows = [{"id": b[0], "full_name": b[1]} for b in constants.SEED_BORROWERS]
@@ -197,6 +291,7 @@ def root():
             "POST /generate?count=N&mode=clean|dirty|mixed",
             "POST /loans/{loan_id}/disburse",
             "POST /payments",
+            "POST /scenarios/loan-book",
         ],
     }
 
@@ -308,6 +403,55 @@ def record_payment(body: PaymentRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(event)
     return {"loan_id": body.loan_id, "event": _event_to_dict(event)}
+
+
+@app.post("/scenarios/loan-book", status_code=201)
+def create_loan_book(body: LoanBookRequest, db: Session = Depends(get_db)):
+    """Create loans with controlled payment histories so every dbt Gold
+    delinquency bucket (current / 30-59 / 60-89 / 90-179 / charge-off) is populated.
+
+    All timestamps are backdated relative to now, each disbursement precedes
+    its payments, and every payment is less than the principal (outstanding >
+    0). Generates fresh ids and never deletes rows, so repeated calls only add
+    data. Writes loans + events in a single transaction.
+    """
+    now = _now()
+    ensure_borrowers(db)
+
+    all_loans: list[dict] = []
+    all_events: list[dict] = []
+    per_bucket: dict[str, dict] = {}
+
+    for bucket, spec in NPL_BUCKETS.items():
+        bucket_payments = 0
+        for _ in range(body.n_per_bucket):
+            loan, events = _loan_book_unit(now, bucket)
+            all_loans.append(loan)
+            all_events.extend(events)
+            bucket_payments += sum(1 for e in events if e["event_type"] == "payment")
+        per_bucket[bucket] = {
+            "label": spec["label"],
+            "gold_bucket": spec["gold_bucket"],
+            "days_since_payment": spec["days_since_payment"],
+            "loans": body.n_per_bucket,
+            "payments": bucket_payments,
+        }
+
+    db.bulk_insert_mappings(models.Loan, all_loans)
+    db.bulk_insert_mappings(models.LoanEvent, all_events)
+    db.commit()
+
+    LOANS_GENERATED.labels(mode="loan-book").inc(len(all_loans))
+    LOAN_EVENTS_GENERATED.labels(mode="loan-book").inc(len(all_events))
+
+    total_payments = sum(b["payments"] for b in per_bucket.values())
+    return {
+        "created_loans": len(all_loans),
+        "payments": total_payments,
+        "loan_events": len(all_events),
+        "n_per_bucket": body.n_per_bucket,
+        "per_bucket": per_bucket,
+    }
 
 
 if __name__ == "__main__":

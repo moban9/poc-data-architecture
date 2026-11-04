@@ -13,6 +13,25 @@ data upstream of Debezium CDC → Kafka → Iceberg → dbt.
 | POST   | `/generate?count=N&mode=clean\|dirty\|mixed` | insert N loans (+ events) |
 | POST   | `/loans/{loan_id}/disburse` | record a disbursement event |
 | POST   | `/payments` | record a payment event (`{"loan_id", "amount", "occurred_at"?}`) |
+| POST   | `/scenarios/loan-book` | create loans with controlled payment histories so every Gold delinquency bucket is populated (`{"n_per_bucket": N}`) |
+
+## Delinquency / NPL loan book (`POST /scenarios/loan-book`)
+
+Creates, in one transaction, `n_per_bucket` loans per delinquency bucket with
+deterministic payment histories (most recent payment aged relative to now):
+
+| bucket | last payment age | Gold `loan_delinquency` bucket |
+|--------|------------------|--------------------------------|
+| `on_time`     | 5 days   | `current` |
+| `dpd_30_59`   | 45 days  | `30-59`   |
+| `dpd_60_89`   | 75 days  | `60-89`   |
+| `dpd_90_plus` | 120 days | `90-179`  |
+| `charge_off`  | 200 days | `charge-off` (>=180 dpd) |
+
+Each disbursement precedes its payments, and every payment is less than the
+principal so the outstanding balance stays > 0. New ids are generated and no
+rows are ever deleted, so the endpoint is safe to call repeatedly.
+
 
 ## Dirty modes (map 1:1 to dbt Silver DQ tests)
 

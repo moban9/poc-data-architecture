@@ -83,10 +83,9 @@ From `compose/docker-compose.yml` (the `metabase` service):
    | Catalog | `lakehouse` | Trino catalog name |
    | Schema | `gold` | default namespace (models use fully-qualified names anyway) |
 
-5. **Save.** Metabase syncs the schema; `lakehouse.gold.loan_portfolio`,
-   `loan_origination_daily`, `loan_event_summary` (plus `silver.*`,
-   `bronze.*`, `lakehouse.quarantine_lms`) should appear under the Lakehouse
-   database.
+5. **Save.** Metabase syncs the schema; `lakehouse.gold.loan_portfolio_summary`,
+   `loan_event_daily`, `loan_delinquency` (plus `silver.*`, `bronze.*`,
+   `lakehouse.quarantine_lms`) should appear under the Lakehouse database.
 
 > The connection is **not** configured in code anywhere in the repo — there is
 > no env var, init script, or compose-side setup that provisions the Metabase
@@ -98,21 +97,22 @@ From the Metabase SQL editor (or `docker compose exec trino trino`), run a real
 query against a real Gold table:
 
 ```sql
-SELECT currency, loan_count, total_amount, avg_amount
-FROM lakehouse.gold.loan_portfolio
-ORDER BY currency;
+SELECT loan_status, loan_type, loan_count, total_principal, outstanding_balance
+FROM lakehouse.gold.loan_portfolio_summary
+ORDER BY loan_status, loan_type;
 ```
 
-Expected shape: one row per currency (`USD`, `EUR`, `GBP`, `JPY`, `CAD`, `AUD`
-— the accepted values in `dbt/models/schema.yml`), with numeric `loan_count`,
-`total_amount`, `avg_amount`. If the table is missing, the dbt Gold run has not
-completed (see §8).
+Expected shape: one row per (`loan_status`, `loan_type`) combination —
+`loan_status` ∈ `originated`/`disbursed`/`repaying`, `loan_type` ∈
+`micro`/`small`/`medium`/`large` — with numeric `loan_count`,
+`total_principal`, `outstanding_balance`. If the table is missing, the dbt Gold
+run has not completed (see §8).
 
 Direct Trino cross-check (same tables, bypassing Metabase):
 
 ```bash
 cd compose
-docker compose exec trino trino --execute "SELECT * FROM lakehouse.gold.loan_portfolio"
+docker compose exec trino trino --execute "SELECT * FROM lakehouse.gold.loan_portfolio_summary"
 ```
 
 ## 5. Building the dashboard
@@ -122,18 +122,24 @@ to the demo scenario story (`demo/app.py`):
 
 | Card | Type | Source (table) | Metric |
 |---|---|---|---|
-| Total loan book | KPI / single number | `loan_portfolio` | `SUM(total_amount)` |
-| Loans by currency | Bar | `loan_portfolio` | `loan_count` grouped by `currency` |
-| Daily originations | Line / area (time) | `loan_origination_daily` | `loan_count` over `origination_date` |
-| Event activity | Bar | `loan_event_summary` | `event_count` by `event_type` |
+| Total loan book | KPI / single number | `loan_portfolio_summary` | `SUM(total_principal)` |
+| Loans by status | Bar | `loan_portfolio_summary` | `loan_count` grouped by `loan_status` |
+| Daily originations | Line / area (time) | `loan_event_daily` | `origination_count` over `event_date` |
+| Event activity | Bar | `loan_event_daily` | `disbursement_count` / `payment_count` over `event_date` |
+| **NPL rate** | KPI / single number | `loan_delinquency` | `npl_rate` (portfolio-level) |
+| **Delinquency buckets** | Table | `loan_delinquency` | `loan_count`, `outstanding_balance`, `share_of_book` by `delinquency_bucket` |
 | Data Quality — quarantined rows | Table / count | `lakehouse.quarantine_lms` | rows grouped by `rule` (DQ panel) |
 
-Filters: a `currency` filter (values `USD/EUR/GBP/JPY/CAD/AUD`) applied to the
-portfolio and origination cards; a date-range filter on `origination_date` for
-the daily-originations card. The DQ card drives the "dirty" / "incident"
-scenarios: `quarantine_lms` only fills when dbt isolates bad rows, so the panel
-stays empty on a clean run and lights up on dirty runs (the "DQ banner" the
-scenario narrates).
+The two NPL cards are reproduced as paste-ready native queries in `bi/metabase/`
+(`npl_rate_kpi.sql`, `delinquency_buckets.sql`); see `bi/metabase/README.md` for
+the exact paste location (New question → Native query → Lakehouse → Trino) and
+card/formatting settings.
+
+Filters: a date-range filter on `event_date` for the daily-originations and
+event-activity cards. The NPL and delinquency cards are portfolio-level (no
+filter). The DQ card drives the "dirty" / "incident" scenarios: `quarantine_lms`
+only fills when dbt isolates bad rows, so the panel stays empty on a clean run
+and lights up on dirty runs (the "DQ banner" the scenario narrates).
 
 ## 6. Persistence + config-as-data
 
@@ -198,8 +204,8 @@ and §5 are manual.
 
   If `gold` is missing the dbt one-shot hasn't succeeded (it runs after Trino is
   healthy): re-run with `docker compose up -d --force-recreate dbt`.
-- **Wrong timezone / date column**: `origination_date` is a DATE
-  (`loan_origination_daily`), not a timestamp — group by it as a date. Trino's
+- **Wrong timezone / date column**: `event_date` is a DATE
+  (`loan_event_daily`), not a timestamp — group by it as a date. Trino's
   JVM has no `TZ` set in compose, so times are UTC. If report dates look off by
   a day, set the report timezone in Admin → Settings → Localization (Metabase
   defaults to the JVM UTC). `loan_event.occurred_at` is the only true timestamp.
