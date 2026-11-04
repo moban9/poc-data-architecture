@@ -1,8 +1,9 @@
 # Manual Setup — Operator Runbook (start here)
 
 Step-by-step manual bring-up of the whole POC, written by the team that built each
-part and checked against the repo files (not from memory). Follow it top to bottom, once, on a clean GCP project. Expect most of the wall-clock
-time to be spent waiting: `terraform apply`, image pulls, and the managed certificate.
+part and checked against the repo files (not from memory). Follow it top to bottom,
+once, on a clean GCP project. Expect most of the wall-clock time to be spent waiting:
+`terraform apply`, image pulls, and the managed certificate.
 
 If you only want the fast path, the `Makefile` (see [README](../README.md)) encodes
 the same sequence. Use this runbook when a step fails, or when you need to
