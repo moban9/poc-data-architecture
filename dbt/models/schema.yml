@@ -64,6 +64,8 @@ models:
         description: "Event type code."
         tests:
           - not_null
+      - name: amount
+        description: "Event amount (NULL for origination)."
       - name: occurred_at
         description: "Event timestamp."
         tests:
@@ -79,39 +81,56 @@ models:
           - unique
 
   # ── Gold models ──────────────────────────────────────────────────────────
-  - name: loan_portfolio
-    description: "Gold: loan portfolio roll-up by currency."
+  - name: loan_portfolio_summary
+    description: "Gold: loan portfolio summary grouped by derived loan_status and loan_type."
     columns:
-      - name: currency
-        description: "ISO 4217 currency code."
+      - name: loan_status
+        description: "Derived lifecycle status: originated / disbursed / repaying."
+        tests:
+          - not_null
+      - name: loan_type
+        description: "Derived principal-size tier: micro / small / medium / large."
         tests:
           - not_null
       - name: loan_count
-        description: "Number of clean loans in this currency."
-        tests:
-          - positive_value
+        description: "Number of clean loans in the group."
+      - name: total_principal
+        description: "Sum of principal across the group."
+      - name: avg_amount
+        description: "Average principal across the group."
+      - name: outstanding_balance
+        description: "Principal outstanding (principal - payments received), floored at 0."
 
-  - name: loan_origination_daily
-    description: "Gold: daily loan origination volume."
+  - name: loan_delinquency
+    description: "Gold: disbursed loans bucketed by days past due (30/60/90+), with NPL rate."
     columns:
-      - name: origination_date
-        description: "Date the loans were originated (YYYY-MM-DD)."
+      - name: delinquency_bucket
+        description: "current / 30-59 / 60-89 / 90+ (days past due)."
         tests:
           - not_null
-          - valid_date
       - name: loan_count
-        description: "Number of clean loans originated that day."
-        tests:
-          - positive_value
+        description: "Number of disbursed loans in the bucket."
+      - name: outstanding_balance
+        description: "Outstanding balance of loans in the bucket."
+      - name: npl_rate
+        description: "Portfolio NPL rate = 90+ loans / total disbursed loans."
 
-  - name: loan_event_summary
-    description: "Gold: loan event activity by event type."
+  - name: loan_event_daily
+    description: "Gold: daily loan event rollup (counts and amounts per calendar day)."
     columns:
-      - name: event_type
-        description: "Event type code (origination/disbursement/payment)."
+      - name: event_date
+        description: "Calendar day of the events."
         tests:
           - not_null
-      - name: event_count
-        description: "Number of events of this type."
-        tests:
-          - positive_value
+      - name: total_events
+        description: "Total events that day."
+      - name: origination_count
+        description: "Origination events that day."
+      - name: disbursement_count
+        description: "Disbursement events that day."
+      - name: payment_count
+        description: "Payment events that day."
+      - name: disbursement_amount
+        description: "Total disbursed amount that day."
+      - name: payment_amount
+        description: "Total payment amount that day."

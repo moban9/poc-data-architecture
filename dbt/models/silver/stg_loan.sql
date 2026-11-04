@@ -4,12 +4,12 @@
 --
 -- PRODUCTION WIRING: reads the live Bronze CDC stream
 -- (source('bronze','loan')) instead of the demo dirty_data seed.
--- The Debezium -> Iceberg sink stores `amount` as an obfuscated base64 string
--- (raw Decimal bytes); decode it here so the downstream DQ rules
--- (positive_value) and Gold aggregates can operate on real numbers.
+-- `amount` is staged as a plain numeric (the LMS source is NUMERIC(18,2)).
+-- The previous base64 decode (macros/decode_amount.sql) was a workaround for a
+-- sink that never emitted data; it is no longer applied.
 select
     id,
-    cast({{ decode_amount('amount') }} as double) as amount,
+    cast(amount as double) as amount,
     currency,
     origination_date,
     borrower_id
