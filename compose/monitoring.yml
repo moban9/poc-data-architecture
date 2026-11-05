@@ -58,6 +58,18 @@ x-plane-app-env: &plane-app-env
   API_KEY_RATE_LIMIT: 60/minute
   MINIO_ENDPOINT_SSL: "0"
   NUM_PROXIES: "0"
+  # Django derives CSRF_TRUSTED_ORIGINS from this list (settings/common.py:
+  # CSRF_TRUSTED_ORIGINS = cors_allowed_origins) and flips the session/CSRF
+  # cookies to Secure when every listed origin is https.
+  #
+  # Without it the list is empty, so Django falls back to comparing the
+  # browser's `Origin:` against the scheme it computes from the request. Traefik
+  # sits behind the GCP LB (TLS terminates there, plain HTTP on :80) and
+  # *overwrites* X-Forwarded-Proto to `http`, so Django believes
+  # http://plane.<domain> while the browser posts Origin: https://… — every
+  # god-mode sign-in / sign-up POST then dies on "CSRF Verification Failed"
+  # (HTTP 200 page) and the instance can never be registered from the UI.
+  CORS_ALLOWED_ORIGINS: "${PLANE_CORS_ALLOWED_ORIGINS:-https://plane.onendo.cloud}"
 
 services:
   # ── Metrics collection ─────────────────────────────────────────────────────
