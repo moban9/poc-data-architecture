@@ -666,6 +666,8 @@ def generate(
     ensure_borrowers(db)
 
     _log = logging.getLogger("lms.generate")
+    if os.getenv("LMS_TIMING"):
+        _log.setLevel(logging.INFO)
     _t_start = time.perf_counter()
     _flush_s = 0.0
     _flushes = 0
