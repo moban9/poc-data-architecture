@@ -64,9 +64,22 @@ services:
       TRINO_URL: http://trino:8080
       METABASE_URL: http://metabase:3000
       DAGSTER_URL: http://dagster:3000
+      # Real ticket creation needs all five: the URL, an API key, the workspace
+      # slug and the project id. Only the URLs used to be passed through here,
+      # so a populated compose/.env still left the container unable to ticket
+      # (PLANE_API_KEY/WORKSPACE/PROJECT_ID were empty *inside* the demo).
       PLANE_API_URL: ${PLANE_API_URL:-http://plane:8000/api/v1}
-      PLANE_UI_URL: ${PLANE_UI_URL:-http://plane-web:80}
+      PLANE_UI_URL: ${PLANE_UI_URL:-http://localhost:3010}
+      PLANE_API_KEY: ${PLANE_API_KEY:-}
+      PLANE_WORKSPACE: ${PLANE_WORKSPACE:-}
+      PLANE_PROJECT_ID: ${PLANE_PROJECT_ID:-}
       PUSHGATEWAY_URL: ${PUSHGATEWAY_URL:-http://pushgateway:9091}
+    # Fallback path when Plane runs as its own compose project (its `plane`
+    # service then is NOT resolvable from the lms-poc network — that shows up as
+    # the panel reporting plane reachable:false). Point PLANE_API_URL at
+    # http://host.docker.internal:8010/api/v1 in that case.
+    extra_hosts:
+    - "host.docker.internal:host-gateway"
     expose:
     - "8000"
     depends_on:

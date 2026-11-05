@@ -208,6 +208,10 @@ def _reachable(url: str, timeout: float = 1.5) -> bool:
         req = urllib.request.Request(url, method="GET")
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return 200 <= r.status < 500
+    except urllib.error.HTTPError as exc:
+        # urlopen raises on 4xx/5xx; a served response (even 401/404) still means
+        # the service is up — only 5xx counts as down.
+        return exc.code < 500
     except Exception:
         return False
 
@@ -348,8 +352,16 @@ async def _create_plane_ticket(run_id: str, breach_msg: str) -> dict:
             headers={"Content-Type": "application/json", "X-API-Key": key},
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=8) as r:
-            return json.load(r)
+        try:
+            with urllib.request.urlopen(req, timeout=8) as r:
+                return json.load(r)
+        except urllib.error.HTTPError as exc:
+            # urllib's str(HTTPError) is only "HTTP Error 404: Not Found" — the
+            # Plane response body carries the actual reason (bad key, wrong
+            # workspace slug, unknown project id, missing state). Surface it so
+            # a failed ticket never silently degrades to a bare "unreachable".
+            body = exc.read().decode("utf-8", "replace")[:500]
+            raise RuntimeError(f"Plane {exc.code} from POST {url}: {body}") from exc
 
     try:
         resp = await asyncio.to_thread(_post)
