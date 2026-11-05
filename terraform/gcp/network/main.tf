@@ -208,33 +208,19 @@ resource "google_compute_url_map" "app" {
 }
 
 # ── Managed certificate ───────────────────────────────────────────────────────
-# A GCP managed certificate is immutable: changing `managed.domains` forces a
-# NEW certificate resource. The POC first deployed with 4 hostnames
-# (grafana/demo/bi/plane); the full stack needs 12. Replacing the cert in place
-# would leave the HTTPS proxy serving a PROVISIONING certificate for tens of
-# minutes, so the cutover is staged:
+# One certificate covers the whole stack: the 4 public UIs plus the 8 internal
+# service hostnames.
 #
-#   phase 1 (this config) — `cert_v2` is created and attached ALONGSIDE the
-#             legacy cert. GCP answers SNI with whichever cert matches, so the
-#             original 4 hostnames keep their ACTIVE certificate throughout.
-#   phase 2 (after v2 is ACTIVE) — drop the legacy cert from `ssl_certificates`
-#             and delete it. Never serves a non-ACTIVE certificate.
+# A GCP managed certificate is immutable — changing `managed.domains` forces a
+# NEW certificate resource. The POC was originally deployed with only the 4 UIs,
+# so growing the SAN list was done as a zero-downtime rotation:
+#   1. create `cert_v2` with all 12 hostnames and attach it alongside the legacy
+#      cert (GCP picks the matching cert by SNI, so nothing went dark);
+#   2. wait for cert_v2 to be ACTIVE, then repoint the proxy at it;
+#   3. delete the legacy 4-hostname cert (this file no longer declares it).
+# To add a hostname later, repeat that pattern: never rewrite this cert in place.
 #
-# Both certs need DNS A records for their domains pointing at lb_ip.
-resource "google_compute_managed_ssl_certificate" "cert" {
-  # legacy 4-hostname certificate — removed in phase 2
-  name = "${var.vpc_name}-managed-cert"
-
-  managed {
-    domains = [
-      "grafana.${var.cert_domain}",
-      "demo.${var.cert_domain}",
-      "bi.${var.cert_domain}",
-      "plane.${var.cert_domain}",
-    ]
-  }
-}
-
+# Every listed domain needs a DNS A record pointing at lb_ip.
 resource "google_compute_managed_ssl_certificate" "cert_v2" {
   name = "${var.vpc_name}-managed-cert-v2"
 
