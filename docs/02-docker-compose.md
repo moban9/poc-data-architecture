@@ -94,7 +94,7 @@ openssl rand -base64 32     # includes +/= — avoid for URL-embedded values
 | `DAGSTER_PG_PASSWORD` | Dagster Postgres password (`dagster-postgres`, used via `dagster.yaml` `{env: ...}`) | `openssl rand -hex 16` |
 | `DAGSTER_PG_DB` | Dagster instance database | `dagster` — keep |
 | `DAGSTER_HOST_PORT` | Host port for the Dagster UI (**3000 is taken by Grafana**) | `3001` |
-| `DAGSTER_DBT_CRON` | Cadence of the dbt pipeline schedule (cron syntax, UTC) | `*/2 * * * *` (old cron parity) |
+| `DAGSTER_DBT_CRON` | Cadence of the dbt pipeline schedule (cron syntax, UTC) | `*/15 * * * *` (must exceed a full silver/gold rebuild, docs/09 §6.1) |
 | `GRAFANA_PASSWORD` | Grafana admin password (used by the `grafana` service in `monitoring.yml`) | `openssl rand -hex 16` |
 | `POSTGRES_IMAGE` | Postgres image pin | `postgres:16` — keep |
 | `POLARIS_IMAGE` | Polaris image pin | `apache/polaris:latest` |

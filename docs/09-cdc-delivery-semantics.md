@@ -324,13 +324,32 @@ of 921.60MB [Top Consumers: {TopNRankingOperator=776.72MB, LocalExchange=123.68M
 (`query.max-total-memory-per-node` is defunct on Trino 484 — it makes the server
 refuse to start). No VM resize, no extra spend; the container still has 4GB.
 
-### 9.6 Operational note — Dagster schedule paused
+### 9.6 Operational note — Dagster schedule unwedged (kanban t_1184e3c6)
 
 `dbt_pipeline_schedule` (`*/2 * * * *`) had produced **290 queued runs** (438
 already auto-cancelled) because a full silver/gold rebuild takes far longer than
 2 minutes on this dataset; two ran concurrently at all times and the queue grew
-without bound. The schedule is **paused** and the queued runs terminated
-(`scripts/cancel-queued-dagster-runs.sh`, uses `terminateRun` — this Dagster build
-has no `cancelRun`). It must not be resumed at `*/2` cadence: the follow-up card
-covers a sane interval, concurrency limit 1, and a scoped `--select` build.
+without bound. Root cause, measured: the `*/2` cadence + `max_concurrent_runs: 2`
+starved the daemon, and its in-process code server — which has a **hard-coded
+20s heartbeat TTL** (`dagster._daemon.controller.DAEMON_GRPC_SERVER_HEARTBEAT_TTL`,
+not configurable) — could not answer the 1s heartbeat pings under the old
+`mem_limit=1g`/`cpus=0.5`, so it shut down ~every 65s. Two runs wedged in
+`STARTED`/`STARTING` and held both concurrency slots for ~10h; nothing drained.
+
+Resolved (all reversible, no data touched):
+
+- cadence `*/2` → `*/15` (`DAGSTER_DBT_CRON` default in compose +
+  `definitions.py` + `.env.example`), with `tag_concurrency_limits` dbt=1 kept;
+- webserver `mem_limit` 1g→2g and `cpus` 0.5→1.0; daemon 768m→1g and 0.5→1.0
+  (host has ~19GB free — the heartbeat watchdog is resource-starved, not OOM);
+- dbt scoped: `dbt run --select silver gold --threads 1` (single-node Trino
+  shares one 1536MB per-node budget; §6.1, §9.5);
+- wedged runs cleared (non-terminal runs marked `CANCELED` in the `runs` table —
+  metadata only, they never executed dbt), schedule re-enabled and verified to
+  produce exactly one SUCCESS run per tick.
+
+`terminateRun` (this build has no `cancelRun`) returns `TerminateRunFailure` for
+runs already stuck in `STARTING`/`CANCELING`/`NOT_STARTED` — those must be cleared
+by updating `runs.status` directly in `dagster-postgres`, then restarting the
+daemon. Do not resume the schedule at `*/2` cadence.
 
