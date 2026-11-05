@@ -215,7 +215,7 @@ docker compose -f docker-compose.yml -f monitoring.yml -f traefik.yml up -d --pu
 | `polaris-setup` | `${POLARIS_SETUP_IMAGE:-alpine/curl:latest}` | — | — | — | One-shot: creates `lakehouse` catalog + bucket (`restart: "no"`) |
 | `kafka` | `${KAFKA_IMAGE:-apache/kafka:3.8.1}` | 9092 | 9092 | — | Kafka broker (KRaft, combined broker+controller) |
 | `connect` | `${CONNECT_IMAGE:-debezium/connect:2.7.3.Final}` | 8083 | 8083 | `connect.<domain>` → `connect:8083` | Kafka Connect (Debezium + Iceberg sink plugins) |
-| `register-connectors` | `${POLARIS_SETUP_IMAGE:-alpine/curl:latest}` | — | — | — | One-shot: PUTs Debezium source + Iceberg sink configs (`restart: "no"`) |
+| `register-connectors` | `${POLARIS_SETUP_IMAGE:-alpine/curl:latest}` | — | — | — | One-shot: reconciles Debezium source + Iceberg sink configs — `PUT` only when the rendered config differs from the stored one, so a deploy no longer restarts connector tasks ([09](09-cdc-delivery-semantics.md)) (`restart: "no"`) |
 | `trino` | `${TRINO_IMAGE:-trinodb/trino:latest}` | 8080 | 8080 | `trino.<domain>` → `trino:8080` | SQL engine over the Iceberg catalog |
 | `dbt` | `${DBT_IMAGE:-onendo-dbt:latest}` (build `../dbt`) | — | — | — | One-shot: runs medallion pipeline + pushes metrics (`restart: "no"`) |
 | `dagster-postgres` | `${POSTGRES_IMAGE:-postgres:16}` | 5432 | — | — | Dagster instance metadata (run history, schedule ticks) |

@@ -171,13 +171,15 @@ services:
       # POLARIS_AUTHENTICATION_TOKEN_BROKER_* env vars do NOT bind to
       # polaris.authentication.token-broker.* (that config is a
       # @WithUnnamedKey map), and fail silently.
-      JAVA_TOOL_OPTIONS: "-Xmx384m -javaagent:/opt/jmx/jmx_prometheus_javaagent.jar=7074:/opt/jmx/polaris.yml -Dpolaris.authentication.token-broker.type=rsa-key-pair -Dpolaris.authentication.token-broker.rsa-key-pair.private-key-file=/keys/private.pem -Dpolaris.authentication.token-broker.rsa-key-pair.public-key-file=/keys/public.pem"
+      JAVA_TOOL_OPTIONS: "-Xmx768m -javaagent:/opt/jmx/jmx_prometheus_javaagent.jar=7074:/opt/jmx/polaris.yml -Dpolaris.authentication.token-broker.type=rsa-key-pair -Dpolaris.authentication.token-broker.rsa-key-pair.private-key-file=/keys/private.pem -Dpolaris.authentication.token-broker.rsa-key-pair.public-key-file=/keys/public.pem"
     ports:
     - "8181:8181"
     depends_on:
     - polaris-postgres
-    mem_limit: 512m
-    cpus: 0.5
+    # 512m OOM-killed Polaris under concurrent dbt/Iceberg-sink catalog load
+    # (container oom events, exit 0 + restart loop).
+    mem_limit: 1g
+    cpus: 1.0
     volumes:
     - ../monitoring/jmx:/opt/jmx:ro
     - ./polaris/keys:/keys:ro   # persisted JWT signing keys (see generate-keys.sh)
@@ -268,12 +270,21 @@ services:
     - connect_logs:/kafka/logs
     - ./connect-plugins:/kafka/connect/iceberg-sink
     - ../monitoring/jmx:/opt/jmx:ro
-    mem_limit: 1536m
-    cpus: 1.0
+    # 1536m OOM-killed the worker while draining the POC backlog (Debezium +
+    # iceberg-sink + 11 connectors on the plugin path); 4g with
+    # MaxRAMPercentage=75 gives a 3 GB heap.
+    mem_limit: 4g
+    cpus: 2.0
 
-  # One-shot: (re-)register the Debezium source + Iceberg sink connectors with
-  # Kafka Connect (idempotent PUT upsert). Re-runs on every `up -d`, so a VM
-  # reboot re-registers the connectors regardless of Kafka config-topic state.
+  # One-shot: RECONCILE the Debezium source + Iceberg sink connector configs with
+  # Kafka Connect. Runs on every `up -d`, so a VM reboot re-registers the
+  # connectors regardless of Kafka config-topic state — but it only PUTs a
+  # connector whose rendered config actually differs from the stored one
+  # (GET + key diff). Blind re-PUTs used to restart the sink task on every
+  # deploy, and a restarted sink replays its uncommitted Kafka window; the
+  # append-only sink writes that replay as duplicate rows (docs/09). Only a
+  # real config change should ever cause a restart.
+  # FORCE_REGISTER=1 restores the old always-PUT behaviour.
   register-connectors:
     image: ${POLARIS_SETUP_IMAGE:-alpine/curl:latest}
     entrypoint: ["/bin/sh", "-c"]
@@ -283,6 +294,8 @@ services:
       bash /connectors/register-connectors.sh
     environment:
       CONNECT_URL: http://connect:8083
+      FORCE_REGISTER: ${FORCE_REGISTER:-0}
+      WAIT_FOR_RUNNING: ${WAIT_FOR_RUNNING:-1}
       LMS_DB_HOST: lms-postgres
       LMS_DB_PORT: "5432"
       LMS_DB_USER: ${LMS_DB_USER:-lms}
@@ -292,6 +305,8 @@ services:
       DBZ_TABLE_INCLUDE_LIST: ${DBZ_TABLE_INCLUDE_LIST:-public.loan,public.loan_event,public.borrower,public.repayment_schedule}
       DBZ_SLOT_NAME: ${DBZ_SLOT_NAME:-lms_poc_debezium}
       DBZ_PUBLICATION_NAME: ${DBZ_PUBLICATION_NAME:-lms_poc_publication}
+      # no_data: a connector recreate must never re-emit table history (docs/09).
+      SNAPSHOT_MODE: ${SNAPSHOT_MODE:-no_data}
       ICEBERG_CATALOG_URI: ${ICEBERG_CATALOG_URI:-http://polaris:8181/api/catalog}
       ICEBERG_WAREHOUSE: ${ICEBERG_WAREHOUSE:-lakehouse}
       ICEBERG_TABLES: ${ICEBERG_TABLES:-bronze.loan,bronze.loan_event,bronze.borrower,bronze.repayment_schedule}
@@ -319,7 +334,7 @@ services:
     restart: unless-stopped
     image: ${TRINO_IMAGE:-trinodb/trino:latest}
     environment:
-      JAVA_TOOL_OPTIONS: "-Xmx1g -javaagent:/opt/jmx/jmx_prometheus_javaagent.jar=7073:/opt/jmx/trino.yml"
+      JAVA_TOOL_OPTIONS: "-Xmx3g -javaagent:/opt/jmx/jmx_prometheus_javaagent.jar=7073:/opt/jmx/trino.yml"
       # Injected into etc/catalog/lakehouse.properties via ${ENV:...} (see
       # trino/catalog/README.md for the full env contract).
       POLARIS_URI: ${POLARIS_URI:-http://polaris:8181/api/catalog}
@@ -333,12 +348,16 @@ services:
       MINIO_REGION: ${MINIO_REGION:-us-east-1}
     ports:
     - "8080:8080"
-    mem_limit: 2048m
-    cpus: 1.5
+    mem_limit: 4g
+    cpus: 2.0
     volumes:
       # Filename = Trino catalog name: lakehouse.properties (Polaris REST catalog).
       # etc/catalog/postgres.properties (LMS) still TODO.
     - ./trino/catalog:/etc/trino/catalog:ro
+    # Batch query memory: the image default allows only 0.3 x Xmx = 921MB per
+    # node, which the 6.9M-id Silver dedupe exceeds (docs/09 §6.1). Mounting the
+    # whole file is required — Trino has no include/config-override mechanism.
+    - ./trino/config.properties:/etc/trino/config.properties:ro
     - ./demo:/demo:ro
     - ../monitoring/jmx:/opt/jmx:ro
     depends_on:

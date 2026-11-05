@@ -70,7 +70,10 @@ models:
           - valid_date
 
   - name: loan_event
-    description: "Silver staging of the LMS `loan_event` CDC stream."
+    description: >
+      Silver staging of the LMS `loan_event` CDC stream (deduped to one row per
+      id, then DQ-filtered: NULL loan_id and events belonging to loans that
+      failed loan DQ are excluded — see the model header).
     columns:
       - name: id
         description: "Event identifier (primary key)."

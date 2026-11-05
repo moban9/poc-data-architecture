@@ -63,7 +63,15 @@ SQL
   sleep 3
 done
 
-echo "→ re-registering connectors (fresh snapshot.mode=initial)"
-bash "${SCRIPT_DIR}/register-connectors.sh"
+echo "→ re-registering the source connector with a DELIBERATE full snapshot"
+# The default template is snapshot.mode=no_data (so a plain compose up / connector
+# recreate can never re-emit history — docs/09 §4). A re-snapshot is the one case
+# that must opt in explicitly, and only for the SOURCE connector.
+SNAPSHOT_MODE=initial bash "${SCRIPT_DIR}/register-connectors.sh" debezium-postgres
 
 echo "done. Bronze will re-capture loan + repayment_schedule on the next snapshot."
+echo
+echo "NOTE: the stored config now says snapshot.mode=initial, so the next"
+echo "      ./register-connectors.sh (or compose up) will reconcile it back to"
+echo "      no_data — that is intended, and is a no-op for the snapshot once the"
+echo "      connector has offsets. Do not re-snapshot a second time by accident."

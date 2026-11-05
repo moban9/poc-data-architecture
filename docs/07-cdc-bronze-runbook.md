@@ -102,6 +102,73 @@ docker exec -e JAVA_TOOL_OPTIONS= lms-monitoring-kafka-1 /opt/kafka/bin/kafka-co
   --bootstrap-server localhost:9092 --describe --group connect-iceberg-sink
 ```
 
+## Failure mode 4 — bronze row counts exceed distinct ids after a restart
+
+Symptoms: `count(*)` is a multiple of `count(DISTINCT id)` (2.25x after one
+crash-restart in the 2026-11-05 incident), `bronze.loan` above 354,360,
+`dbt test` failing `unique_repayment_schedule_id` /
+`relationships_loan_event_loan_id`, and dashboard KPIs inflated by the same
+factor.
+
+Cause: the sink is **at-least-once** — consumer offsets are committed after the
+Iceberg commit, so a crashed or restarted task replays the uncommitted Kafka
+window — and the Apache Iceberg Kafka Connect writer is **append-only**, so the
+replay lands as duplicate rows. A blind `PUT /connectors/<name>/config` on every
+`docker compose up -d` used to restart the task and provoke exactly that replay;
+`register-connectors` now skips unchanged configs, so only real crashes replay.
+
+Do **not** try to fix this with `iceberg.tables.upsert-mode-enabled` /
+`iceberg.tables.cdc-field`. Those are Tabular-era keys: the Apache connector
+(1.9.2 pinned here, and 1.12.0 too) does not define them and silently ignores
+them. Evidence and the writer analysis: [09 §3](09-cdc-delivery-semantics.md).
+
+What to do today:
+
+```bash
+./connectors/verify-idempotency.sh     # measures what a restart actually costs
+```
+
+With `EXPECT_IDEMPOTENT=1` it exits 2 on a dirty baseline (dedupe first: rename a
+deduped copy into place — Polaris rejects table removal). In the default report
+mode (`EXPECT_IDEMPOTENT=0`) a dirty baseline is reported and the run continues.
+While the writer is append-only the script can only *quantify* the duplicates, not
+pass; bronze is a changelog and the `unique_*` guarantees hold in silver
+(`latest_cdc_row`, [09 §6.1](09-cdc-delivery-semantics.md)). The decision —
+dedupe-on-read, approved — is [09 §5](09-cdc-delivery-semantics.md).
+
+## Failure mode 5 — bronze rows grow past the source after a connector recreate
+
+Symptom: `count(*)` in a bronze table is a multiple of the source row count, the
+copies-per-id distribution is *uneven* (some ids 2x, some 20x+, most 1x), and the
+Kafka topic's LOG-END-OFFSET equals the bronze row count — i.e. the sink wrote
+every record exactly once and the **source** emitted the duplicates.
+
+Cause: `snapshot.mode=initial`. Debezium snapshots when it has no stored offsets.
+If a connector is recreated (or crashes repeatedly before its snapshot completes),
+every restart re-emits the table from the first row again. Measured 2026-11-05:
+`bronze.repayment_schedule` reached 14,347,023 rows for 6,908,334 source rows,
+with 46 copies of the earliest ids and a 4.9x burst inside one hour.
+
+Prevention (in place): the source template uses `SNAPSHOT_MODE` defaulting to
+`no_data`, so a recreate resumes from the WAL and emits no history. Verify:
+
+```bash
+curl -s localhost:8083/connectors/debezium-postgres/config | grep snapshot.mode  # no_data
+# then recreate the connector and confirm the topic end-offset does NOT move:
+for t in loan loan_event repayment_schedule borrower; do
+  docker exec -e JAVA_TOOL_OPTIONS= lms-monitoring-kafka-1 \
+    /opt/kafka/bin/kafka-get-offsets.sh --bootstrap-server localhost:9092 \
+    --topic lms.public.$t --time -1
+done
+```
+
+`snapshot.mode=no_data` means a **brand-new** environment gets no data rows on
+first start: bootstrap it with
+`SNAPSHOT_MODE=initial ./register-connectors.sh debezium-postgres`, or run
+`resnapshot.sh` (the only entry point that opts into `initial` on purpose).
+The rows already duplicated in bronze are not repaired by this — that is the
+bronze reconcile (rename-based dedupe, kanban `t_43530a0f`).
+
 ## Known debris (do not copy)
 
 * `bronze/borrower-<uuid>/…` objects in the `lakehouse` bucket are leftovers from a

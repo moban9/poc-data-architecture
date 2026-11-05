@@ -283,7 +283,7 @@ Real schema/table names (from `dbt/models/sources.yml`, `dbt_project.yml`, model
 
 | Schema | Tables |
 |---|---|
-| `bronze` | `loan`, `loan_event`, `borrower` (CDC append-only) + seeds `dirty_data`, `borrowers` |
+| `bronze` | `loan`, `loan_event`, `borrower`, `repayment_schedule` (CDC **changelog**: append-only sink, at-least-once delivery, N rows per id possible — see [09](09-cdc-delivery-semantics.md)) + seeds `dirty_data`, `borrowers` |
 | `silver` | `stg_loan`, `loan`, `loan_event`, `dim_borrower` (+ per-rule `quarantine_loan_*` models) |
 | `gold` | `loan_portfolio_summary`, `loan_event_daily`, `loan_delinquency` |
 | `quarantine_lms` | `quarantine_lms` |

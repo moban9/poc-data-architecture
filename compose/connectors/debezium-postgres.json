@@ -12,7 +12,7 @@
   "slot.name": "${DBZ_SLOT_NAME}",
   "publication.name": "${DBZ_PUBLICATION_NAME}",
   "publication.autocreate.mode": "filtered",
-  "snapshot.mode": "initial",
+  "snapshot.mode": "${SNAPSHOT_MODE}",
   "decimal.handling.mode": "double",
   "heartbeat.interval.ms": "10000",
   "key.converter": "org.apache.kafka.connect.json.JsonConverter",
