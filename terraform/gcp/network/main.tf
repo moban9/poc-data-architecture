@@ -257,10 +257,12 @@ resource "google_compute_managed_ssl_certificate" "cert_v2" {
 }
 
 resource "google_compute_target_https_proxy" "proxy" {
-  name             = "${var.vpc_name}-https-proxy"
-  url_map          = google_compute_url_map.app.id
+  name    = "${var.vpc_name}-https-proxy"
+  url_map = google_compute_url_map.app.id
+  # cert_v2 (12 hostnames) is ACTIVE; the legacy cert is no longer attached and
+  # is removed from the config in a follow-up commit so the destroy is provably
+  # after the proxy stops referencing it.
   ssl_certificates = [
-    google_compute_managed_ssl_certificate.cert.id,
     google_compute_managed_ssl_certificate.cert_v2.id,
   ]
 }
