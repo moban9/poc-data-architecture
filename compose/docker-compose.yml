@@ -20,8 +20,14 @@ services:
     command: >
       postgres -c wal_level=logical -c max_replication_slots=4
                -c max_wal_senders=4 -c shared_preload_libraries=pgoutput
-    mem_limit: 384m
-    cpus: 1.0
+               -c shared_buffers=2GB -c effective_cache_size=8GB
+               -c work_mem=64MB -c maintenance_work_mem=512MB
+               -c max_wal_size=4GB -c checkpoint_timeout=15min
+    # 384m/128MB shared_buffers made the /generate COPY crawl: every index
+    # insert on a multi-million-row repayment_schedule missed the 128MB cache
+    # (~4s per 1000-loan batch). 3g/2GB buffers keeps the hot indexes resident.
+    mem_limit: 3g
+    cpus: 2.0
     volumes:
     - lms_pg_data:/var/lib/postgresql/data
     healthcheck:
