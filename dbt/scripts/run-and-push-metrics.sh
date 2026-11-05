@@ -36,14 +36,18 @@ else
 fi
 
 echo "=== dbt run (silver + gold) ==="
-if ! dbt run --profiles-dir "$DBT_PROFILES_DIR"; then
+# --select silver gold: scope the rebuild to the two medallion layers (the root
+# quarantine table already exists and must not be re-created). --threads 1: this
+# is a single-node Trino with a 1536MB per-node query budget (docs/09 §6.1, §9.5)
+# — concurrent model queries share that one budget and OOM the dedupe.
+if ! dbt run --profiles-dir "$DBT_PROFILES_DIR" --select silver gold --threads 1; then
   echo "FATAL: dbt run failed — not pushing metrics"
   exit 1
 fi
 
 echo "=== dbt test (failures are expected on dirty source data) ==="
 set +e
-dbt test --profiles-dir "$DBT_PROFILES_DIR" 2>&1
+dbt test --profiles-dir "$DBT_PROFILES_DIR" --threads 1 2>&1
 TEST_RC=$?
 set -e
 echo "dbt test exit code: $TEST_RC"

@@ -14,7 +14,7 @@ schedule that replaces the 2-minute cron (`scripts/dbt-schedule.sh`) on the VM.
 Env contract (set by compose/docker-compose.yml):
   DBT_PROJECT_DIR       dbt project root                (default /dbt)
   DBT_PIPELINE_SCRIPT   entrypoint, relative to the root (default scripts/run-and-push-metrics.sh)
-  DAGSTER_DBT_CRON      schedule cadence                 (default */2 * * * * — cron parity)
+  DAGSTER_DBT_CRON      schedule cadence                 (default */15 * * * * — see docs/09 §6.1)
 """
 
 import os
@@ -36,8 +36,10 @@ from dagster import (
 
 DBT_PROJECT_DIR = os.environ.get("DBT_PROJECT_DIR", "/dbt")
 PIPELINE_SCRIPT = os.environ.get("DBT_PIPELINE_SCRIPT", "scripts/run-and-push-metrics.sh")
-# Same cadence as the cron this replaces; override DAGSTER_DBT_CRON to change it.
-DBT_CRON = os.environ.get("DAGSTER_DBT_CRON", "*/2 * * * *")
+# A full silver/gold rebuild over the 6.9M-row silver and 14.3M-row bronze
+# changelog cannot finish in 2 minutes; */15 (with dbt tag concurrency=1) gives
+# a slow run time to drain instead of queuing ticks (kanban t_1184e3c6).
+DBT_CRON = os.environ.get("DAGSTER_DBT_CRON", "*/15 * * * *")
 
 
 @asset(

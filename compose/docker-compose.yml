@@ -456,7 +456,10 @@ services:
       DBT_PROFILES_DIR: /dbt
       TRINO_HOST: trino
       PUSHGATEWAY_URL: http://pushgateway:9091
-      DAGSTER_DBT_CRON: ${DAGSTER_DBT_CRON:-*/2 * * * *}
+      # Cadence must exceed a full silver/gold rebuild (docs/09 §6.1: the 6.9M-id
+      # Silver dedupe alone is ~164s single-threaded). */2 starved the daemon,
+      # wedged the code server, and queued 290+ runs (kanban t_1184e3c6).
+      DAGSTER_DBT_CRON: ${DAGSTER_DBT_CRON:-*/15 * * * *}
     ports:
       # Host 3000 belongs to Grafana; 3001 is free on the POC node.
       - "${DAGSTER_HOST_PORT:-3001}:3000"
@@ -469,8 +472,12 @@ services:
         condition: service_healthy
       trino:
         condition: service_healthy
-    mem_limit: 1g
-    cpus: 0.5
+    # 1g/0.5 CPU starved the in-process code server: its 20s heartbeat watchdog
+    # (dagster._daemon.controller DAEMON_GRPC_SERVER_HEARTBEAT_TTL) fired
+    # ~every 65s and the crash-loop wedged runs in STARTED/STARTING (t_1184e3c6).
+    # The host has 19 GB free, so give the webserver + code server real headroom.
+    mem_limit: 2g
+    cpus: 1.0
     healthcheck:
       test:
         - CMD-SHELL
@@ -503,8 +510,9 @@ services:
         condition: service_started
       trino:
         condition: service_healthy
-    mem_limit: 768m
-    cpus: 0.5
+    # Same heartbeat-starvation fix as the webserver above (t_1184e3c6).
+    mem_limit: 1g
+    cpus: 1.0
 
   # Ad-hoc engine for the data-virtualization demo (profiles: demo).
   # Run it:  docker compose run --rm duckdb

@@ -19,7 +19,7 @@ dagster/
 |---|---|---|
 | `dbt_medallion_pipeline` | asset (`group=dbt`) | shells out to `dbt/scripts/run-and-push-metrics.sh` — seed if missing, `dbt run` (silver + gold), `dbt test`, pushgateway metrics |
 | `dbt_pipeline_job` | asset job | selection = the asset above |
-| `dbt_pipeline_schedule` | schedule, `RUNNING` by default | `DAGSTER_DBT_CRON` (default `*/2 * * * *`, UTC) |
+| `dbt_pipeline_schedule` | schedule, `RUNNING` by default | `DAGSTER_DBT_CRON` (default `*/15 * * * *`, UTC) |
 
 The dbt project is mounted read-write at `/dbt` in both `dagster` and
 `dagster-daemon`, so the job executes the *same* script the one-shot service and
@@ -72,6 +72,13 @@ docker compose -f docker-compose.yml exec dagster dagster asset materialize \
 
 ## Failure modes seen / handled
 
+- **Code server crash-loop ("No heartbeat received in 20 seconds")** → the
+  daemon's in-process code server has a hard-coded 20s heartbeat TTL
+  (`dagster._daemon.controller.DAEMON_GRPC_SERVER_HEARTBEAT_TTL`, not configurable).
+  Under `mem_limit`/`cpus` starvation (was 1g/0.5 CPU) it can't answer the 1s
+  heartbeat pings and shuts down ~every 65s, wedging runs in `STARTED`/`STARTING`.
+  Fix: raise the container limits (host has headroom) and keep the schedule
+  cadence above the rebuild time so the daemon is never hammered. See t_1184e3c6.
 - **Schedule does not fire** → `dagster-daemon` is not running, or its storage
   cannot reach `dagster-postgres`. Schedules are ticked by the daemon only.
 - **Run fails with `dbt entrypoint not found`** → the `../dbt` mount is missing
