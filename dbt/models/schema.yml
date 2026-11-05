@@ -122,6 +122,14 @@ models:
           - relationships:
               to: ref('loan')
               field: id
+      - name: currency
+        description: "ISO 4217 currency code of the parent loan (denormalized via loan_id)."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["USD", "EUR", "GBP", "JPY", "CAD", "AUD"]
+                quote: true
       - name: installment_no
         description: "1-based instalment number within the loan's schedule."
         tests:
@@ -150,7 +158,7 @@ models:
 
   # ── Gold models ──────────────────────────────────────────────────────────
   - name: loan_portfolio_summary
-    description: "Gold: loan portfolio summary grouped by derived loan_status and loan_type."
+    description: "Gold: loan portfolio summary grouped by derived loan_status, loan_type and currency."
     columns:
       - name: loan_status
         description: "Derived lifecycle status: originated / disbursed / repaying."
@@ -160,6 +168,14 @@ models:
         description: "Derived principal-size tier: micro / small / medium / large."
         tests:
           - not_null
+      - name: currency
+        description: "ISO 4217 currency code — the money grain is per-currency (no FX)."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["USD", "EUR", "GBP", "JPY", "CAD", "AUD"]
+                quote: true
       - name: loan_count
         description: "Number of clean loans in the group."
       - name: total_principal
@@ -202,12 +218,25 @@ models:
           - not_null
 
   - name: loan_event_daily
-    description: "Gold: daily loan event rollup (counts and amounts per calendar day)."
+    description: "Gold: daily loan event rollup (counts and amounts per calendar day, per currency)."
+    tests:
+      - unique_combination:
+          combination:
+            - event_date
+            - currency
     columns:
       - name: event_date
         description: "Calendar day of the events."
         tests:
           - not_null
+      - name: currency
+        description: "ISO 4217 currency code — the money grain is per-currency (no FX)."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["USD", "EUR", "GBP", "JPY", "CAD", "AUD"]
+                quote: true
       - name: total_events
         description: "Total events that day."
       - name: origination_count
@@ -220,3 +249,39 @@ models:
         description: "Total disbursed amount that day."
       - name: payment_amount
         description: "Total payment amount that day."
+
+  - name: loan_delinquency_snapshot
+    description: >-
+      Gold: append-only history of delinquency buckets (current / 30-59 / 60-89
+      / 90+), one row per (as_of_date, delinquency_bucket) with a real portfolio
+      NPL rate. Materialized incremental (append, no unique_key) — each dbt run
+      inserts the current snapshot and never drops prior dates, so the NPL-rate
+      trend over time is real (no synthesized history). See the model header for
+      the as_of_date / dedup contract.
+    columns:
+      - name: as_of_date
+        description: "Snapshot date = max(loan_event.occurred_at)::date (the dataset's 'now')."
+        tests:
+          - not_null
+      - name: delinquency_bucket
+        description: "current / 30-59 / 60-89 / 90+ (days past due)."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["current", "30-59", "60-89", "90+"]
+                quote: true
+      - name: loan_count
+        description: "Number of disbursed loans in the bucket at this snapshot date."
+        tests:
+          - not_null
+      - name: outstanding_balance
+        description: "Outstanding balance of loans in the bucket (floored at 0); nominal, multi-currency."
+        tests:
+          - not_null
+      - name: npl_rate
+        description: >-
+          Portfolio NPL rate = 90+ outstanding / total outstanding at this
+          snapshot date; identical on every bucket row for the same date.
+        tests:
+          - not_null

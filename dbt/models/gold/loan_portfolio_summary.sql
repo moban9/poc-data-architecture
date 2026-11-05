@@ -1,6 +1,6 @@
 {{ config(materialized='table', schema='gold') }}
 
--- Gold: loan portfolio summary — one row per (loan_status, loan_type).
+-- Gold: loan portfolio summary — one row per (loan_status, loan_type, currency).
 --
 -- DIMENSION DERIVATION NOTE: the source schema carries no explicit
 -- `loan_status` or `loan_type` column (loan = id, amount, currency,
@@ -18,6 +18,31 @@
 --       'large'   >= 75,000
 --
 -- outstanding_balance = principal - total payments received (floored at 0).
+--
+-- ── CURRENCY DECISION (Keystone, t_51346c5a) ────────────────────────────────
+-- The gold grain now carries `currency` so every money KPI is sliceable by
+-- ISO-4217 code. This is option (a) of the BI ask, chosen deliberately over the
+-- alternatives:
+--   (a) CHOSEN — currency in the grain (loan_status × loan_type × currency).
+--   (b) DEFERRED — a `usd_equivalent` column requires a documented FX source.
+--       None exists in the POC, and Keystone will not fabricate rates. When
+--       Meridian/Cask supply a `dim_currency_rate` (currency, rate, rate_date,
+--       source) — a fixed POC table is fine IF the source + as-of date are
+--       stated in the model — `usd_equivalent = amount * rate` is a drop-in
+--       addition to this model's final select.
+--   (c) REJECTED — the source is NOT single-currency-in-practice: src/lms
+--       `_random_currency()` draws from six codes (USD/EUR/GBP/JPY/CAD/AUD). A
+--       `count(distinct currency) = 1` test would fail by construction. The
+--       currency dimension is instead enforced by the `accepted_values` test on
+--       this column in models/schema.yml.
+--
+-- CONSEQUENCE FOR BI: `total_principal` / `outstanding_balance` / `avg_amount`
+--   are NOMINAL per currency. SUM-ing them across currencies yields a mixed-
+--   currency nominal figure, NOT a real total — there is no FX conversion. Any
+--   headline money KPI must slice by currency (or filter to one currency). The
+--   "Book by currency" card moves from silver.loan to this mart. Existing
+--   status/tier cards (GROUP BY loan_status / loan_type) remain correct: they
+--   aggregate over the finer grain.
 
 with events as (
     select
@@ -34,6 +59,7 @@ enriched as (
     select
         l.id,
         l.amount as principal,
+        l.currency as currency,
         coalesce(e.total_paid, 0.0) as total_paid,
         case
             when coalesce(e.disbursement_count, 0) = 0 then 'originated'
@@ -53,9 +79,10 @@ enriched as (
 select
     loan_status,
     loan_type,
+    currency,
     count(*) as loan_count,
     round(sum(principal), 2) as total_principal,
     round(avg(principal), 2) as avg_amount,
     round(sum(greatest(principal - total_paid, 0.0)), 2) as outstanding_balance
 from enriched
-group by loan_status, loan_type
+group by loan_status, loan_type, currency
