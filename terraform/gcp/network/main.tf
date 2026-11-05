@@ -207,9 +207,36 @@ resource "google_compute_url_map" "app" {
   default_service = google_compute_backend_service.app.id
 }
 
-# Placeholder: cert stays PROVISIONING until DNS points cert_domain at lb_ip.
+# ── Managed certificate ───────────────────────────────────────────────────────
+# A GCP managed certificate is immutable: changing `managed.domains` forces a
+# NEW certificate resource. The POC first deployed with 4 hostnames
+# (grafana/demo/bi/plane); the full stack needs 12. Replacing the cert in place
+# would leave the HTTPS proxy serving a PROVISIONING certificate for tens of
+# minutes, so the cutover is staged:
+#
+#   phase 1 (this config) — `cert_v2` is created and attached ALONGSIDE the
+#             legacy cert. GCP answers SNI with whichever cert matches, so the
+#             original 4 hostnames keep their ACTIVE certificate throughout.
+#   phase 2 (after v2 is ACTIVE) — drop the legacy cert from `ssl_certificates`
+#             and delete it. Never serves a non-ACTIVE certificate.
+#
+# Both certs need DNS A records for their domains pointing at lb_ip.
 resource "google_compute_managed_ssl_certificate" "cert" {
+  # legacy 4-hostname certificate — removed in phase 2
   name = "${var.vpc_name}-managed-cert"
+
+  managed {
+    domains = [
+      "grafana.${var.cert_domain}",
+      "demo.${var.cert_domain}",
+      "bi.${var.cert_domain}",
+      "plane.${var.cert_domain}",
+    ]
+  }
+}
+
+resource "google_compute_managed_ssl_certificate" "cert_v2" {
+  name = "${var.vpc_name}-managed-cert-v2"
 
   managed {
     domains = [
@@ -232,7 +259,10 @@ resource "google_compute_managed_ssl_certificate" "cert" {
 resource "google_compute_target_https_proxy" "proxy" {
   name             = "${var.vpc_name}-https-proxy"
   url_map          = google_compute_url_map.app.id
-  ssl_certificates = [google_compute_managed_ssl_certificate.cert.id]
+  ssl_certificates = [
+    google_compute_managed_ssl_certificate.cert.id,
+    google_compute_managed_ssl_certificate.cert_v2.id,
+  ]
 }
 
 resource "google_compute_global_forwarding_rule" "https" {

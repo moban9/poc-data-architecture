@@ -85,6 +85,14 @@ resource "google_compute_instance" "poc" {
   # started by `make deploy` so the compose dir can be synced first.
   metadata_startup_script = file("${path.module}/../../scripts/bootstrap.sh")
 
+  # The image is resolved from a live image family, so a routine apply would
+  # otherwise see "family moved to a newer build" and REPLACE this running node
+  # (terraform treats boot_disk.initialize_params as create-time only). A
+  # re-image must be a deliberate act, never a side effect of `terraform apply`.
+  lifecycle {
+    ignore_changes = [boot_disk[0].initialize_params[0].image]
+  }
+
   metadata = {
     ssh-keys = "ubuntu:ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIER1MBVNAk8entsOyKJwFHYr/QIBIi90F8gLhM+eIYo4 poc-deploy"
   }
