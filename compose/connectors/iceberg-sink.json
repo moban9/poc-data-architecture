@@ -7,6 +7,7 @@
   "iceberg.table.bronze.loan.route-regex": "bronze\\.loan",
   "iceberg.table.bronze.loan_event.route-regex": "bronze\\.loan_event",
   "iceberg.table.bronze.borrower.route-regex": "bronze\\.borrower",
+  "iceberg.table.bronze.repayment_schedule.route-regex": "bronze\\.repayment_schedule",
   "iceberg.tables.auto-create-enabled": "true",
   "iceberg.tables.evolve-schema-enabled": "true",
   "iceberg.tables.schema-force-optional": "true",

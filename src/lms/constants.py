@@ -36,3 +36,24 @@ VALID_GENERATE_MODES = ["clean", "dirty", "mixed"]
 
 # Fraction of dirty rows produced by mode="mixed" (~10%).
 MIXED_DIRTY_RATE = 0.10
+
+# ── Repayment contract (NPL) ─────────────────────────────────────────────────
+# Variable loan term, default 12 months (per the confirmed design).
+LOAN_TERM_DEFAULT = 12
+LOAN_TERMS = [6, 12, 24, 36]
+
+# Annual interest-rate range (percent) sampled for /generate.
+INTEREST_RATE_MIN = 6.0
+INTEREST_RATE_MAX = 24.0
+
+# Deterministic loan-book parameters (POST /scenarios/loan-book): a fixed term,
+# a fixed rate, and a fixed number of on-time instalments before the loan stops
+# paying. The (paid+1)-th instalment's due_date is the delinquency anchor.
+LOAN_BOOK_TERM = 12
+LOAN_BOOK_RATE = 12.0
+LOAN_BOOK_PAID_INSTALLMENTS = 3
+
+# repayment_schedule.status values (consumed by the Gold NPL model).
+REPAYMENT_STATUS_SCHEDULED = "scheduled"
+REPAYMENT_STATUS_PAID = "paid"
+REPAYMENT_STATUS_OVERDUE = "overdue"

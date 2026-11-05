@@ -25,13 +25,13 @@
 #   LMS_DB_PASSWORD        lms
 #   LMS_DB_NAME            lms
 #   LMS_TOPIC_PREFIX       lms                       (topics become lms.public.*)
-#   DBZ_TABLE_INCLUDE_LIST public.loan,public.loan_event,public.borrower
+#   DBZ_TABLE_INCLUDE_LIST public.loan,public.loan_event,public.borrower,public.repayment_schedule
 #   DBZ_SLOT_NAME          lms_poc_debezium
 #   DBZ_PUBLICATION_NAME   lms_poc_publication
 #   ── Iceberg sink (Polaris REST catalog -> MinIO S3) ──
 #   ICEBERG_CATALOG_URI    http://polaris:8181/api/catalog
 #   ICEBERG_WAREHOUSE      s3a://warehouse           (MinIO bucket "warehouse")
-#   ICEBERG_TABLES         bronze.loan,bronze.loan_event,bronze.borrower
+#   ICEBERG_TABLES         bronze.loan,bronze.loan_event,bronze.borrower,bronze.repayment_schedule
 #   SINK_TOPICS_REGEX      lms.public.*
 #   MINIO_ENDPOINT         http://minio:9000
 #   MINIO_ROOT_USER        minioadmin
@@ -58,14 +58,14 @@ LMS_DB_USER="${LMS_DB_USER:-lms}"
 LMS_DB_PASSWORD="${LMS_DB_PASSWORD:-lms}"
 LMS_DB_NAME="${LMS_DB_NAME:-lms}"
 LMS_TOPIC_PREFIX="${LMS_TOPIC_PREFIX:-lms}"
-DBZ_TABLE_INCLUDE_LIST="${DBZ_TABLE_INCLUDE_LIST:-public.loan,public.loan_event,public.borrower}"
+DBZ_TABLE_INCLUDE_LIST="${DBZ_TABLE_INCLUDE_LIST:-public.loan,public.loan_event,public.borrower,public.repayment_schedule}"
 DBZ_SLOT_NAME="${DBZ_SLOT_NAME:-lms_poc_debezium}"
 DBZ_PUBLICATION_NAME="${DBZ_PUBLICATION_NAME:-lms_poc_publication}"
 
 # ── Iceberg sink (Polaris REST catalog -> MinIO S3) ──────────────────────────
 ICEBERG_CATALOG_URI="${ICEBERG_CATALOG_URI:-http://polaris:8181/api/catalog}"
 ICEBERG_WAREHOUSE="${ICEBERG_WAREHOUSE:-lakehouse}"
-ICEBERG_TABLES="${ICEBERG_TABLES:-bronze.loan,bronze.loan_event,bronze.borrower}"
+ICEBERG_TABLES="${ICEBERG_TABLES:-bronze.loan,bronze.loan_event,bronze.borrower,bronze.repayment_schedule}"
 SINK_TOPICS_REGEX="${SINK_TOPICS_REGEX:-lms.public.*}"
 MINIO_ENDPOINT="${MINIO_ENDPOINT:-http://minio:9000}"
 MINIO_ROOT_USER="${MINIO_ROOT_USER:-minioadmin}"

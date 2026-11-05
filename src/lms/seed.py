@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Idempotent schema + seed for the LMS source database.
 
-Creates the three source tables (borrower, loan, loan_event) if missing and
-seeds the four valid borrowers (B-1001..B-1004). Safe to run repeatedly:
-``CREATE TABLE IF NOT EXISTS`` + ``INSERT ... ON CONFLICT DO NOTHING``.
+Creates the four source tables (borrower, loan, loan_event, repayment_schedule)
+if missing and seeds the four valid borrowers (B-1001..B-1004). Safe to run
+repeatedly: ``CREATE TABLE IF NOT EXISTS`` + ``INSERT ... ON CONFLICT DO
+NOTHING``.
 
 Usage:
     python seed.py
@@ -40,7 +41,7 @@ def main() -> None:
     create_schema()
     seeded = seed_borrowers()
     print(
-        f"lms-api seed: schema ensured (borrower, loan, loan_event); "
+        f"lms-api seed: schema ensured (borrower, loan, loan_event, repayment_schedule); "
         f"{seeded} borrowers upserted",
         flush=True,
     )

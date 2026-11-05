@@ -10,11 +10,12 @@ Endpoints
   GET  /health                      → liveness + db connectivity
   GET  /metrics                     → Prometheus metrics (counters + process/gc)
   GET  /                            → service metadata
-  POST /generate?count=N&mode=...   → insert N loans (+ events) across the 3 tables
+  POST /generate?count=N&mode=...   → insert N loans (+ schedule + events) across the 4 tables
   POST /loans/{loan_id}/disburse    → record a disbursement event for a loan
   POST /payments                    → record a payment event for a loan
-  POST /scenarios/loan-book         → create loans with controlled payment histories
+  POST /scenarios/loan-book         → create loans with a REAL repayment schedule
                                       so every dbt Gold delinquency bucket is populated
+                                      (days-past-due derived from repayment_schedule.due_date)
 
 Modes for /generate
 -------------------
@@ -24,10 +25,11 @@ Modes for /generate
 """
 from __future__ import annotations
 
+import calendar
 import random
 import uuid
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
@@ -131,12 +133,77 @@ def _coerce_utc(dt: datetime) -> datetime:
     return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
 
 
+def _parse_date(value: str) -> date:
+    """Parse an ISO ``YYYY-MM-DD`` string to a ``date`` (best-effort)."""
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        return _now().date()
+
+
+def _add_months(d: date, months: int) -> date:
+    """Add ``months`` calendar months, clamping the day to the target month's end."""
+    month_index = d.month - 1 + months
+    year = d.year + month_index // 12
+    month = month_index % 12 + 1
+    last_day = calendar.monthrange(year, month)[1]
+    return date(year, month, min(d.day, last_day))
+
+
+def _amortize(
+    principal: float,
+    annual_rate_pct: float,
+    term_months: int,
+    disbursement_date: date,
+) -> tuple[float, list[tuple[int, str, float, float]]]:
+    """Monthly-annuity schedule.
+
+    Returns ``(monthly_installment, [(installment_no, due_date, principal_due,
+    interest_due), ...])``. Equal instalment (PMT), amortized from
+    ``disbursement_date``, one instalment per month, ISO ``YYYY-MM-DD`` due
+    dates. The final instalment absorbs rounding so principal sums to
+    ``principal`` exactly.
+    """
+    monthly_rate = (annual_rate_pct / 100.0) / 12.0
+    if monthly_rate <= 0:
+        installment = principal / term_months
+    else:
+        installment = principal * monthly_rate / (1 - (1 + monthly_rate) ** -term_months)
+    installment = round(installment, 2)
+
+    rows: list[tuple[int, str, float, float]] = []
+    balance = principal
+    for installment_no in range(1, term_months + 1):
+        interest_due = round(balance * monthly_rate, 2)
+        principal_due = round(installment - interest_due, 2)
+        if installment_no == term_months:
+            # Absorb rounding drift so total principal due == principal.
+            principal_due = round(balance, 2)
+            interest_due = round(installment - principal_due, 2)
+        due_date = _add_months(disbursement_date, installment_no)
+        rows.append((installment_no, due_date.isoformat(), principal_due, interest_due))
+        balance = round(balance - principal_due, 2)
+    return installment, rows
+
+
 def _make_loan_unit(loan_id: str, dirty_mode: Optional[str] = None):
-    """Build one clean loan + its events; ``dirty_mode`` mutates the unit."""
+    """Build one clean loan + its repayment schedule + events; ``dirty_mode`` mutates the unit.
+
+    Returns ``(loan, schedule, events)``. The repayment contract (term, rate,
+    schedule, maturity) is always well-formed even for dirty rows — the defects
+    are confined to the columns the Silver DQ rules inspect.
+    """
     amount = _random_amount()
     currency = _random_currency()
     origination_date = _random_date()
     borrower_id = _random_borrower_id()
+
+    term_months = random.choice(constants.LOAN_TERMS)
+    interest_rate = round(random.uniform(constants.INTEREST_RATE_MIN, constants.INTEREST_RATE_MAX), 2)
+    # Disburse same day as origination for /generate (schedule amortizes from here).
+    disbursement_date = _add_months(_parse_date(origination_date), 0)
+    monthly_installment, schedule_rows = _amortize(amount, interest_rate, term_months, disbursement_date)
+    maturity_date = schedule_rows[-1][1]
 
     if dirty_mode == "negative_amount":
         amount = -round(random.uniform(100.0, 50_000.0), 2)
@@ -153,7 +220,25 @@ def _make_loan_unit(loan_id: str, dirty_mode: Optional[str] = None):
         "currency": currency,
         "origination_date": origination_date,
         "borrower_id": borrower_id,
+        "term_months": term_months,
+        "disbursement_date": disbursement_date.isoformat(),
+        "interest_rate": interest_rate,
+        "monthly_installment": monthly_installment,
+        "maturity_date": maturity_date,
     }
+
+    schedule = [
+        {
+            "id": _new_id("S"),
+            "loan_id": loan_id,
+            "installment_no": no,
+            "due_date": due_date,
+            "principal_due": principal_due,
+            "interest_due": interest_due,
+            "status": constants.REPAYMENT_STATUS_SCHEDULED,
+        }
+        for (no, due_date, principal_due, interest_due) in schedule_rows
+    ]
 
     occurred_at = _now() - timedelta(seconds=random.randint(0, 60 * 60 * 24 * 30))
     events = [
@@ -172,25 +257,25 @@ def _make_loan_unit(loan_id: str, dirty_mode: Optional[str] = None):
     if dirty_mode == "null_loan_id":
         events[0]["loan_id"] = None
 
-    return loan, events
+    return loan, schedule, events
 
 
 # ─────────────────────────── NPL / delinquency loan book ────────────────────
 #
-# Deterministic payment-history buckets for POST /scenarios/loan-book. Each
-# bucket's `days_since_payment` is the age of the most recent payment relative
-# to `now`, which is the as-of date the dbt Gold `loan_delinquency` model
-# derives from the dataset's max event timestamp. `gold_bucket` is the bucket
-# Gold (`gold.loan_delinquency`) assigns: current / 30-59 / 60-89 / 90-179 /
-# charge-off — these `gold_bucket` values are the accepted_values the dbt tests
-# enforce, so they must stay in lockstep with that model.
+# Deterministic delinquency buckets for POST /scenarios/loan-book. Each bucket's
+# ``days_past_due`` is the days-past-due the Gold ``loan_delinquency`` model
+# derives from the REAL ``repayment_schedule.due_date`` (the oldest overdue
+# instalment) — NOT from a 365-day term assumption. ``gold_bucket`` is the
+# bucket Gold assigns: current / 30-59 / 60-89 / 90+. These are the
+# accepted_values the dbt tests enforce, so they must stay in lockstep with that
+# model. (>=180 days past due is still ``90+`` — there is no charge-off tier.)
 
 NPL_BUCKETS = {
-    "on_time":      {"label": "current",     "days_since_payment": 5,   "gold_bucket": "current"},
-    "dpd_30_59":    {"label": "30-59",       "days_since_payment": 45,  "gold_bucket": "30-59"},
-    "dpd_60_89":    {"label": "60-89",       "days_since_payment": 75,  "gold_bucket": "60-89"},
-    "dpd_90_plus":  {"label": "90+",         "days_since_payment": 120, "gold_bucket": "90-179"},
-    "charge_off":   {"label": "charge-off",  "days_since_payment": 200, "gold_bucket": "charge-off"},
+    "on_time":      {"label": "current",          "days_past_due": 0,   "paid_installments": 11, "gold_bucket": "current"},
+    "dpd_30_59":    {"label": "30-59",            "days_past_due": 45,  "paid_installments": 3,  "gold_bucket": "30-59"},
+    "dpd_60_89":    {"label": "60-89",            "days_past_due": 75,  "paid_installments": 3,  "gold_bucket": "60-89"},
+    "dpd_90_plus":  {"label": "90+",              "days_past_due": 120, "paid_installments": 3,  "gold_bucket": "90+"},
+    "charge_off":   {"label": "90+ (charge-off)", "days_past_due": 200, "paid_installments": 3,  "gold_bucket": "90+"},
 }
 
 
@@ -202,19 +287,22 @@ def _dpd_bucket(days: int) -> str:
         return "30-59"
     if days < 90:
         return "60-89"
-    if days < 180:
-        return "90-179"
-    return "charge-off"
+    return "90+"
 
 
-def _loan_book_unit(now: datetime, bucket: str) -> tuple[dict, list[dict]]:
-    """Build one disbursed loan + a deterministic payment history for ``bucket``.
+def _loan_book_unit(now: datetime, bucket: str) -> tuple[dict, list[dict], list[dict]]:
+    """Build one disbursed loan + a REAL repayment schedule + events for ``bucket``.
 
-    Pure function (no DB): the most recent payment is exactly
-    ``NPL_BUCKETS[bucket]["days_since_payment"]`` days before ``now``, the
-    disbursement precedes its payments, and every instalment is less than the
-    principal so the outstanding balance is always > 0. ``now`` must be
-    timezone-aware UTC.
+    Pure function (no DB). The loan amortizes from ``disbursement_date`` over
+    ``term_months`` monthly instalments; the first ``paid_installments`` are
+    settled on time, then the loan stops paying. For a delinquent bucket the
+    oldest overdue instalment is due exactly ``days_past_due`` days before
+    ``now``, so its ``repayment_schedule.due_date`` encodes the loan's
+    days-past-due. For the current bucket the latest instalment is settled
+    ``now`` (anchoring the Gold as-of date) and nothing is overdue.
+
+    Total paid stays < principal, so outstanding > 0 for every bucket. ``now``
+    must be timezone-aware UTC. Returns ``(loan, schedule, events)``.
     """
     spec = NPL_BUCKETS[bucket]
     amount = _random_amount()
@@ -222,41 +310,78 @@ def _loan_book_unit(now: datetime, bucket: str) -> tuple[dict, list[dict]]:
     borrower_id = _random_borrower_id()
     loan_id = _new_id("L")
 
-    days = spec["days_since_payment"]
-    origination = now - timedelta(days=days + 365)
-    disbursed_at = origination + timedelta(days=1)
+    days_past_due = spec["days_past_due"]
+    paid = spec["paid_installments"]
+    term_months = constants.LOAN_BOOK_TERM
+    interest_rate = constants.LOAN_BOOK_RATE
+
+    if days_past_due == 0:
+        # Current loan: every instalment due so far is paid; the latest
+        # instalment settles today (its payment event anchors as_of == now).
+        disbursement_date = _add_months(now.date(), -paid)
+    else:
+        # Delinquent loan: the oldest overdue instalment is `days_past_due` days
+        # past due; disburse (paid + 1) months before that due date.
+        first_overdue_due = now.date() - timedelta(days=days_past_due)
+        disbursement_date = _add_months(first_overdue_due, -(paid + 1))
+
+    monthly_installment, schedule_rows = _amortize(amount, interest_rate, term_months, disbursement_date)
+    maturity_date = schedule_rows[-1][1]
 
     loan = {
         "id": loan_id,
         "amount": amount,
         "currency": currency,
-        "origination_date": origination.date().isoformat(),
+        "origination_date": disbursement_date.isoformat(),
         "borrower_id": borrower_id,
+        "term_months": term_months,
+        "disbursement_date": disbursement_date.isoformat(),
+        "interest_rate": interest_rate,
+        "monthly_installment": monthly_installment,
+        "maturity_date": maturity_date,
     }
 
+    schedule: list[dict] = []
+    for (no, due_date, principal_due, interest_due) in schedule_rows:
+        due = date.fromisoformat(due_date)
+        if no <= paid:
+            status = constants.REPAYMENT_STATUS_PAID
+        elif due < now.date():  # strictly before today → past due
+            status = constants.REPAYMENT_STATUS_OVERDUE
+        else:
+            status = constants.REPAYMENT_STATUS_SCHEDULED
+        schedule.append({
+            "id": _new_id("S"),
+            "loan_id": loan_id,
+            "installment_no": no,
+            "due_date": due_date,
+            "principal_due": principal_due,
+            "interest_due": interest_due,
+            "status": status,
+        })
+
+    # Events: origination + disbursement, then one on-time payment per settled
+    # instalment (at its due date; the current loan's latest payment is at
+    # ``now``).
+    origination = datetime.combine(disbursement_date, datetime.min.time(), tzinfo=timezone.utc)
+    disbursed_at = origination + timedelta(hours=1)
     events = [
         {"id": _new_id("E"), "loan_id": loan_id, "event_type": "origination",
          "amount": None, "occurred_at": origination},
         {"id": _new_id("E"), "loan_id": loan_id, "event_type": "disbursement",
          "amount": amount, "occurred_at": disbursed_at},
     ]
+    for row in schedule:
+        if row["status"] == constants.REPAYMENT_STATUS_PAID:
+            if days_past_due == 0 and row["installment_no"] == paid:
+                paid_at = now
+            else:
+                paid_at = datetime.combine(date.fromisoformat(row["due_date"]), datetime.min.time(), tzinfo=timezone.utc)
+            events.append({"id": _new_id("E"), "loan_id": loan_id,
+                           "event_type": "payment", "amount": monthly_installment,
+                           "occurred_at": paid_at})
 
-    # Monthly instalments (~1/24th of principal each) ending at the bucket's
-    # target "last paid" timestamp. Total paid stays well under principal, so
-    # outstanding > 0 for every bucket (including the 90-179 / charge-off loans).
-    instalment = round(amount / 24.0, 2)
-    last_paid_at = now - timedelta(days=days)
-    cursor = disbursed_at + timedelta(days=30)
-    while cursor < last_paid_at:
-        events.append({"id": _new_id("E"), "loan_id": loan_id,
-                       "event_type": "payment", "amount": instalment,
-                       "occurred_at": cursor})
-        cursor += timedelta(days=30)
-    events.append({"id": _new_id("E"), "loan_id": loan_id,
-                   "event_type": "payment", "amount": instalment,
-                   "occurred_at": last_paid_at})
-
-    return loan, events
+    return loan, schedule, events
 
 
 def ensure_borrowers(db: Session) -> int:
@@ -284,7 +409,7 @@ def _event_to_dict(ev: models.LoanEvent) -> dict:
 def root():
     return {
         "service": "lms-api",
-        "tables": ["borrower", "loan", "loan_event"],
+        "tables": ["borrower", "loan", "loan_event", "repayment_schedule"],
         "health": "/health",
         "metrics": "/metrics",
         "endpoints": [
@@ -332,6 +457,7 @@ def generate(
     ensure_borrowers(db)
 
     loans: list[dict] = []
+    schedules: list[dict] = []
     events: list[dict] = []
     dirty_count = 0
     mode_counts = {m: 0 for m in constants.DIRTY_MODES}
@@ -343,11 +469,13 @@ def generate(
             mode_i += 1
             dirty_count += 1
             mode_counts[dirty_mode] += 1
-        loan, evs = _make_loan_unit(_new_id("L"), dirty_mode)
+        loan, schedule, evs = _make_loan_unit(_new_id("L"), dirty_mode)
         loans.append(loan)
+        schedules.extend(schedule)
         events.extend(evs)
 
     db.bulk_insert_mappings(models.Loan, loans)
+    db.bulk_insert_mappings(models.RepaymentSchedule, schedules)
     db.bulk_insert_mappings(models.LoanEvent, events)
     db.commit()
 
@@ -358,6 +486,7 @@ def generate(
         "mode": mode,
         "requested": count,
         "loans": len(loans),
+        "repayment_schedule": len(schedules),
         "loan_events": len(events),
         "borrowers_ensured": len(constants.SEED_BORROWERS),
         "dirty": dirty_count,
@@ -407,37 +536,45 @@ def record_payment(body: PaymentRequest, db: Session = Depends(get_db)):
 
 @app.post("/scenarios/loan-book", status_code=201)
 def create_loan_book(body: LoanBookRequest, db: Session = Depends(get_db)):
-    """Create loans with controlled payment histories so every dbt Gold
-    delinquency bucket (current / 30-59 / 60-89 / 90-179 / charge-off) is populated.
+    """Create loans with a REAL repayment schedule so every dbt Gold
+    delinquency bucket (current / 30-59 / 60-89 / 90+) is populated from
+    ``repayment_schedule.due_date``.
 
-    All timestamps are backdated relative to now, each disbursement precedes
-    its payments, and every payment is less than the principal (outstanding >
-    0). Generates fresh ids and never deletes rows, so repeated calls only add
-    data. Writes loans + events in a single transaction.
+    Each loan amortizes monthly from ``disbursement_date``; instalments are
+    ``paid`` / ``overdue`` / ``scheduled`` so the oldest overdue ``due_date``
+    encodes the target days-past-due. Total paid < principal (outstanding > 0).
+    Generates fresh ids and never deletes rows, so repeated calls only add
+    data. Writes loans + schedules + events in a single transaction.
     """
     now = _now()
     ensure_borrowers(db)
 
     all_loans: list[dict] = []
+    all_schedules: list[dict] = []
     all_events: list[dict] = []
     per_bucket: dict[str, dict] = {}
 
     for bucket, spec in NPL_BUCKETS.items():
         bucket_payments = 0
+        bucket_overdue = 0
         for _ in range(body.n_per_bucket):
-            loan, events = _loan_book_unit(now, bucket)
+            loan, schedule, events = _loan_book_unit(now, bucket)
             all_loans.append(loan)
+            all_schedules.extend(schedule)
             all_events.extend(events)
             bucket_payments += sum(1 for e in events if e["event_type"] == "payment")
+            bucket_overdue += sum(1 for s in schedule if s["status"] == constants.REPAYMENT_STATUS_OVERDUE)
         per_bucket[bucket] = {
             "label": spec["label"],
             "gold_bucket": spec["gold_bucket"],
-            "days_since_payment": spec["days_since_payment"],
+            "days_past_due": spec["days_past_due"],
             "loans": body.n_per_bucket,
             "payments": bucket_payments,
+            "overdue_installments": bucket_overdue,
         }
 
     db.bulk_insert_mappings(models.Loan, all_loans)
+    db.bulk_insert_mappings(models.RepaymentSchedule, all_schedules)
     db.bulk_insert_mappings(models.LoanEvent, all_events)
     db.commit()
 
@@ -448,6 +585,7 @@ def create_loan_book(body: LoanBookRequest, db: Session = Depends(get_db)):
     return {
         "created_loans": len(all_loans),
         "payments": total_payments,
+        "repayment_schedule": len(all_schedules),
         "loan_events": len(all_events),
         "n_per_bucket": body.n_per_bucket,
         "per_bucket": per_bucket,
