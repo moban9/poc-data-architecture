@@ -4,13 +4,21 @@
 --
 -- PRODUCTION WIRING: reads the live Bronze CDC stream
 -- (source('bronze','loan')) instead of the demo dirty_data seed.
--- `amount` is staged as a plain numeric (the LMS source is NUMERIC(18,2)).
--- The previous base64 decode (macros/decode_amount.sql) was a workaround for a
--- sink that never emitted data; it is no longer applied.
+--
+-- Money columns (amount, interest_rate, monthly_installment) arrive as JSON
+-- doubles (Debezium decimal.handling.mode=double), so they are cast to double.
+-- term_months (INTEGER) is cast to integer. The ISO date columns
+-- (origination_date, disbursement_date, maturity_date) are VARCHAR passthrough.
+
 select
     id,
     cast(amount as double) as amount,
     currency,
     origination_date,
-    borrower_id
+    borrower_id,
+    cast(term_months as integer) as term_months,
+    disbursement_date,
+    cast(interest_rate as double) as interest_rate,
+    cast(monthly_installment as double) as monthly_installment,
+    maturity_date
 from {{ source('bronze', 'loan') }}

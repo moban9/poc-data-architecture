@@ -27,10 +27,12 @@ Quarantine table (`models/quarantine.sql`, doc 05 §5.4) — 11 columns:
 
 | Path | Purpose |
 |---|---|
-| `models/schema.yml` | DQ tests on `loan` / `loan_event` / `dim_borrower` (assert gate) |
+| `models/schema.yml` | DQ tests on `loan` / `loan_event` / `dim_borrower` / `repayment_schedule` (assert gate) |
 | `models/sources.yml` | Bronze sources (raw CDC append-only) |
-| `models/silver/stg_loan.sql` | Raw loan staging (demo: reads dirty_data seed) |
+| `models/silver/stg_loan.sql` | Raw loan staging (reads Bronze CDC `loan`) |
 | `models/silver/loan.sql` | CLEAN loan (passing-only complement) |
+| `models/silver/stg_repayment_schedule.sql` | Raw repayment_schedule staging (Bronze CDC) |
+| `models/silver/repayment_schedule.sql` | CLEAN repayment_schedule (one row per instalment) |
 | `models/silver/quarantine/*.sql` | Per-rule quarantine models (isolate bad rows) |
 | `models/quarantine.sql` | `lakehouse.quarantine_lms` DDL (11 cols) |
 | `macros/quarantine_insert.sql` | Idempotent append to quarantine (anti-join) |
@@ -73,13 +75,15 @@ flagging the dirty rows still flowing through `silver.loan_event` (NULL/ orphan
 The Silver models now read the **live Bronze CDC stream** (not the demo seeds):
 
 - `stg_loan` → `source('bronze','loan')`
+- `stg_repayment_schedule` → `source('bronze','repayment_schedule')`
 - `dim_borrower` → `source('bronze','borrower')`
 - `loan_event` → `source('bronze','loan_event')` (unchanged passthrough)
 
-The Bronze sink stores `loan.amount` as an **obfuscated base64 string** (raw
-Debezium `DECIMAL(18,2)` bytes, see `macros/decode_amount.sql`). `stg_loan`
-decodes it back to a numeric `amount` so the `positive_value` DQ rule and the
-Gold `sum(amount)` aggregates operate on real numbers.
+Debezium emits `DECIMAL` columns as JSON doubles (`decimal.handling.mode=double`
+in `compose/connectors/debezium-postgres.json`), so `stg_loan` and
+`stg_repayment_schedule` cast the money columns (`amount`, `interest_rate`,
+`monthly_installment`, `principal_due`, `interest_due`) straight to `double` —
+no base64 decode.
 
 Expected outcome (dirty demo):
 
@@ -101,6 +105,6 @@ Expected outcome (dirty demo):
 - Production swap is **done**: `stg_loan` -> `source('bronze','loan')`,
   `dim_borrower` -> `source('bronze','borrower')` (see "Production wiring").
   The `borrowers`/`dirty_data` seeds remain only to exercise the seed DQ tests.
-- The Bronze sink stores `loan.amount` as raw Decimal bytes (base64) — decoded
-  in `stg_loan` via `macros/decode_amount.sql`. Fixing the sink to emit a real
-  DECIMAL is tracked separately (out of dbt's scope).
+- Money columns arrive as JSON doubles via `decimal.handling.mode=double`
+  (Debezium), so Silver casts them straight to `double`. The old
+  `macros/decode_amount.sql` base64 workaround is retired (no longer referenced).

@@ -21,7 +21,12 @@ select
     amount,
     currency,
     origination_date,
-    borrower_id
+    borrower_id,
+    term_months,
+    disbursement_date,
+    interest_rate,
+    monthly_installment,
+    maturity_date
 from {{ ref('stg_loan') }}
 where
     -- not_null(id) (also excludes empty string for robustness)

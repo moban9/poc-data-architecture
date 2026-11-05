@@ -1,31 +1,21 @@
 {{ config(materialized='table', schema='gold') }}
 
-{%- set term_days = 365 %}  {# ASSUMPTION: standard 12-month loan term (the source has no term/maturity column) #}
-
--- Gold: NPL / delinquency — disbursed loans bucketed by days past due, with a
--- REAL portfolio-level NPL rate = (90+ outstanding) / (total outstanding).
+-- Gold: NPL / delinquency — disbursed loans bucketed by days past due (DPD),
+-- with a REAL portfolio-level NPL rate = (90+ outstanding) / (total outstanding).
 --
--- DAYS-PAST-DUE DERIVATION (the source has NO due_date, payment schedule, or
--- maturity column — see schema.yml):
+-- DAYS-PAST-DUE DERIVATION (from the REAL repayment_schedule.due_date — no
+-- 365-day term assumption):
 --
---   The `loan_event.occurred_at` timestamps are CDC/demo *ingestion* times: every
---   disbursement/payment event is clustered inside a ~60-day snapshot window and
---   therefore carries no business delinquency signal. The only business-time
---   column in the schema is `loan.origination_date` (when the loan was actually
---   funded). Days-past-due is anchored to that column, plus a term assumption:
+--   as_of = max(loan_event.occurred_at)  — the dataset's latest event ("now").
+--     POST /scenarios/loan-book anchors the current loan's latest payment at
+--     generation time, so as_of lands at "now".
+--   dpd   = as_of - min(due_date over 'overdue' instalments), floored at 0.
+--     A loan with no overdue instalment has dpd = 0 (current).
 --
---       dpd = as_of_date - origination_date - term_days      (floored at 0)
---
---   * as_of_date = max(loan_event.occurred_at)  — the dataset's latest event
---     (the deterministic pipeline "as of" timestamp).
---   * term_days  = 365  — ASSUMPTION: a standard 12-month loan term. A loan is
---     "current" until it matures (origination_date + 12 months); each day past
---     term counts as one day past due.
---
---   Buckets (days past due): current (0-29), 30-59, 60-89, 90+ (>=90, NPL).
---   outstanding = principal - total payments received (floored at 0).
---   npl_rate    = sum(outstanding for 90+) / sum(outstanding for all buckets),
---                 carried on every row (portfolio-level KPI).
+--   outstanding = principal (loan.amount) - total payments received (floored at 0).
+--   Buckets: current (<30) / 30-59 / 60-89 / 90+ (>=90 = NPL).
+--   npl_rate = 90+ outstanding / total outstanding (portfolio-level KPI, carried
+--              on every row).
 
 with payments as (
     select
@@ -47,16 +37,26 @@ asof as (
     from {{ ref('loan_event') }}
 ),
 
+oldest_overdue as (
+    select
+        loan_id,
+        min(cast(due_date as date)) as first_overdue_due
+    from {{ ref('repayment_schedule') }}
+    where status = 'overdue'
+    group by loan_id
+),
+
 delinquent as (
     select
         greatest(l.amount - coalesce(p.total_paid, 0.0), 0.0) as outstanding,
-        greatest(
-            date_diff('day', cast(l.origination_date as date), a.ref_dt) - {{ term_days }},
+        coalesce(
+            date_diff('day', o.first_overdue_due, a.ref_dt),
             0
         ) as dpd
     from {{ ref('loan') }} l
     join disbursed d on d.loan_id = l.id
     left join payments p on p.loan_id = l.id
+    left join oldest_overdue o on o.loan_id = l.id
     cross join asof a
 ),
 
@@ -85,7 +85,7 @@ select
     g.delinquency_bucket,
     g.loan_count,
     round(g.outstanding_balance, 2) as outstanding_balance,
-    round(t.npl_outstanding / t.total_outstanding, 4) as npl_rate
+    round(t.npl_outstanding / nullif(t.total_outstanding, 0), 4) as npl_rate
 from grouped g
 cross join totals t
 order by

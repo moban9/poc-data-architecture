@@ -44,6 +44,30 @@ models:
           - relationships:
               to: ref('dim_borrower')
               field: id
+      - name: term_months
+        description: "Loan term in months (variable, default 12)."
+        tests:
+          - not_null
+          - positive_value
+      - name: disbursement_date
+        description: "Date the loan was disbursed (YYYY-MM-DD)."
+        tests:
+          - not_null
+          - valid_date
+      - name: interest_rate
+        description: "Annual interest rate in percent (e.g. 12.00 = 12%)."
+        tests:
+          - not_null
+      - name: monthly_installment
+        description: "Equal monthly annuity (PMT) for the amortizing schedule."
+        tests:
+          - not_null
+          - positive_value
+      - name: maturity_date
+        description: "Final contractual due date (YYYY-MM-DD)."
+        tests:
+          - not_null
+          - valid_date
 
   - name: loan_event
     description: "Silver staging of the LMS `loan_event` CDC stream."
@@ -80,6 +104,50 @@ models:
           - not_null
           - unique
 
+  - name: repayment_schedule
+    description: >
+      Silver staging of the LMS `repayment_schedule` table — one row per
+      instalment (installment_no, due_date, principal_due, interest_due, status).
+      Business key is (loan_id, installment_no), enforced in the source.
+    columns:
+      - name: id
+        description: "Instalment identifier (primary key)."
+        tests:
+          - not_null
+          - unique
+      - name: loan_id
+        description: "Foreign key to loan."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('loan')
+              field: id
+      - name: installment_no
+        description: "1-based instalment number within the loan's schedule."
+        tests:
+          - not_null
+      - name: due_date
+        description: "Contractual due date of this instalment (YYYY-MM-DD)."
+        tests:
+          - not_null
+          - valid_date
+      - name: principal_due
+        description: "Principal portion due on this instalment."
+        tests:
+          - not_null
+      - name: interest_due
+        description: "Interest portion due on this instalment."
+        tests:
+          - not_null
+      - name: status
+        description: "scheduled (future) / paid / overdue (past due date, unpaid)."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["scheduled", "paid", "overdue"]
+                quote: true
+
   # ── Gold models ──────────────────────────────────────────────────────────
   - name: loan_portfolio_summary
     description: "Gold: loan portfolio summary grouped by derived loan_status and loan_type."
@@ -105,9 +173,9 @@ models:
     description: >
       Gold: disbursed loans bucketed by days past due (current / 30-59 / 60-89 /
       90+), with a real portfolio-level NPL rate = 90+ outstanding / total
-      outstanding. Days-past-due is anchored to loan.origination_date (the only
-      business-time column; loan_event.occurred_at is CDC ingestion time) plus a
-      documented 12-month term assumption — see the model's derivation note.
+      outstanding. Days-past-due is derived from the real repayment_schedule
+      (as_of - oldest overdue due_date), not a 365-day term assumption — see the
+      model's derivation note.
     columns:
       - name: delinquency_bucket
         description: "current / 30-59 / 60-89 / 90+ (days past due)."

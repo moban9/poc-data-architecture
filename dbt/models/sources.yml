@@ -10,7 +10,10 @@ sources:
     schema: bronze
     tables:
       - name: loan
-        description: "LMS loans. Columns: id, amount, currency, origination_date, borrower_id."
+        description: >-
+          LMS loans. Columns: id, amount (principal), currency, origination_date,
+          borrower_id, term_months, disbursement_date, interest_rate,
+          monthly_installment, maturity_date.
       - name: loan_event
         description: >
           LMS loan events. Columns: id, loan_id, event_type, occurred_at
@@ -19,3 +22,8 @@ sources:
         description: >
           LMS borrowers backing dim_borrower.
           TODO(Meridian): confirm the bronze table name + columns with Cask.
+      - name: repayment_schedule
+        description: >-
+          LMS repayment schedule — one row per instalment. Columns: id, loan_id,
+          installment_no, due_date (YYYY-MM-DD), principal_due, interest_due,
+          status (scheduled / paid / overdue).
