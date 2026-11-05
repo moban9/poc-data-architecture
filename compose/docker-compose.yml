@@ -21,7 +21,7 @@ services:
       postgres -c wal_level=logical -c max_replication_slots=4
                -c max_wal_senders=4 -c shared_preload_libraries=pgoutput
     mem_limit: 384m
-    cpus: 0.5
+    cpus: 1.0
     volumes:
     - lms_pg_data:/var/lib/postgresql/data
     healthcheck:
@@ -41,7 +41,9 @@ services:
     depends_on:
     - lms-postgres
     mem_limit: 512m
-    cpus: 0.5
+    # 10k-loan /generate is ~4ms/loan of CPU; at 0.5 CPU that exceeded the
+    # demo LB's 30s SSE timeout (measured 41s on lms-poc-vm). 2.0 keeps it ~12s.
+    cpus: 2.0
 
   # Demo control panel (FastAPI) — drives the pipeline scenarios. Served by the
   # Traefik edge layer at demo.<DOMAIN>; not published to the host.
