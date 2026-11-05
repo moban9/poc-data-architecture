@@ -1,21 +1,31 @@
 {{ config(materialized='table', schema='gold') }}
 
--- Gold: NPL / delinquency — disbursed loans bucketed by days past due, with
--- charge-off as a first-class state (no longer lumped into 90+).
+{%- set term_days = 365 %}  {# ASSUMPTION: standard 12-month loan term (the source has no term/maturity column) #}
+
+-- Gold: NPL / delinquency — disbursed loans bucketed by days past due, with a
+-- REAL portfolio-level NPL rate = (90+ outstanding) / (total outstanding).
 --
--- DERIVATION NOTE: the source has no payment schedule or due date, so "days
--- past due" is derived from payment events: for each disbursed loan, the days
--- elapsed since its most recent payment (or since disbursement if it has never
--- paid), measured against the dataset's latest event timestamp (the as-of date).
+-- DAYS-PAST-DUE DERIVATION (the source has NO due_date, payment schedule, or
+-- maturity column — see schema.yml):
 --
---   current     (0-29 days past due)
---   30-59       (30-59 days past due)
---   60-89       (60-89 days past due)
---   90-179      (90-179 days past due — non-performing, not yet charged off)
---   charge-off  (>=180 days past due — first-class state)
+--   The `loan_event.occurred_at` timestamps are CDC/demo *ingestion* times: every
+--   disbursement/payment event is clustered inside a ~60-day snapshot window and
+--   therefore carries no business delinquency signal. The only business-time
+--   column in the schema is `loan.origination_date` (when the loan was actually
+--   funded). Days-past-due is anchored to that column, plus a term assumption:
 --
--- npl_rate = (90-179 + charge-off) / total disbursed loans (portfolio-level
--- KPI). Computed once at portfolio level and carried on every row.
+--       dpd = as_of_date - origination_date - term_days      (floored at 0)
+--
+--   * as_of_date = max(loan_event.occurred_at)  — the dataset's latest event
+--     (the deterministic pipeline "as of" timestamp).
+--   * term_days  = 365  — ASSUMPTION: a standard 12-month loan term. A loan is
+--     "current" until it matures (origination_date + 12 months); each day past
+--     term counts as one day past due.
+--
+--   Buckets (days past due): current (0-29), 30-59, 60-89, 90+ (>=90, NPL).
+--   outstanding = principal - total payments received (floored at 0).
+--   npl_rate    = sum(outstanding for 90+) / sum(outstanding for all buckets),
+--                 carried on every row (portfolio-level KPI).
 
 with payments as (
     select
@@ -27,51 +37,61 @@ with payments as (
 ),
 
 disbursed as (
-    select
-        l.id,
-        l.amount as principal,
-        max(e.occurred_at) filter (where e.event_type = 'disbursement') as disbursed_at,
-        max(e.occurred_at) filter (where e.event_type = 'payment') as last_paid_at
-    from {{ ref('loan') }} l
-    join {{ ref('loan_event') }} e on e.loan_id = l.id
-    where e.event_type in ('disbursement', 'payment')
-    group by l.id, l.amount
+    select distinct loan_id
+    from {{ ref('loan_event') }}
+    where event_type = 'disbursement'
+),
+
+asof as (
+    select cast(max(occurred_at) as date) as ref_dt
+    from {{ ref('loan_event') }}
 ),
 
 delinquent as (
     select
-        greatest(d.principal - coalesce(p.total_paid, 0.0), 0.0) as outstanding,
-        case
-            when date_diff('day', coalesce(d.last_paid_at, d.disbursed_at), a.ref_dt) < 30 then 'current'
-            when date_diff('day', coalesce(d.last_paid_at, d.disbursed_at), a.ref_dt) < 60 then '30-59'
-            when date_diff('day', coalesce(d.last_paid_at, d.disbursed_at), a.ref_dt) < 90 then '60-89'
-            when date_diff('day', coalesce(d.last_paid_at, d.disbursed_at), a.ref_dt) < 180 then '90-179'
-            else 'charge-off'
-        end as delinquency_bucket
-    from disbursed d
-    left join payments p on p.loan_id = d.id
-    cross join (select max(occurred_at) as ref_dt from {{ ref('loan_event') }}) a
-    where d.disbursed_at is not null
+        greatest(l.amount - coalesce(p.total_paid, 0.0), 0.0) as outstanding,
+        greatest(
+            date_diff('day', cast(l.origination_date as date), a.ref_dt) - {{ term_days }},
+            0
+        ) as dpd
+    from {{ ref('loan') }} l
+    join disbursed d on d.loan_id = l.id
+    left join payments p on p.loan_id = l.id
+    cross join asof a
 ),
 
 grouped as (
     select
-        delinquency_bucket,
+        case
+            when dpd < 30 then 'current'
+            when dpd < 60 then '30-59'
+            when dpd < 90 then '60-89'
+            else '90+'
+        end as delinquency_bucket,
         count(*) as loan_count,
-        round(sum(outstanding), 2) as outstanding_balance
+        sum(outstanding) as outstanding_balance
     from delinquent
-    group by delinquency_bucket
+    group by 1
+),
+
+totals as (
+    select
+        sum(outstanding_balance) as total_outstanding,
+        sum(case when delinquency_bucket = '90+' then outstanding_balance else 0 end) as npl_outstanding
+    from grouped
 )
 
 select
     g.delinquency_bucket,
     g.loan_count,
-    g.outstanding_balance,
-    round(cast(t.npl_loans as double) / t.total_loans, 4) as npl_rate
+    round(g.outstanding_balance, 2) as outstanding_balance,
+    round(t.npl_outstanding / t.total_outstanding, 4) as npl_rate
 from grouped g
-cross join (
-    select
-        sum(case when delinquency_bucket in ('90-179', 'charge-off') then loan_count else 0 end) as npl_loans,
-        sum(loan_count) as total_loans
-    from grouped
-) t
+cross join totals t
+order by
+    case g.delinquency_bucket
+        when 'current' then 1
+        when '30-59' then 2
+        when '60-89' then 3
+        else 4
+    end

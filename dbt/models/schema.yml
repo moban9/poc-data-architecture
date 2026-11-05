@@ -103,16 +103,19 @@ models:
 
   - name: loan_delinquency
     description: >
-      Gold: disbursed loans bucketed by days past due, with charge-off as a
-      first-class state and a portfolio-level NPL rate.
+      Gold: disbursed loans bucketed by days past due (current / 30-59 / 60-89 /
+      90+), with a real portfolio-level NPL rate = 90+ outstanding / total
+      outstanding. Days-past-due is anchored to loan.origination_date (the only
+      business-time column; loan_event.occurred_at is CDC ingestion time) plus a
+      documented 12-month term assumption — see the model's derivation note.
     columns:
       - name: delinquency_bucket
-        description: "current / 30-59 / 60-89 / 90-179 / charge-off (days past due)."
+        description: "current / 30-59 / 60-89 / 90+ (days past due)."
         tests:
           - not_null
           - accepted_values:
               arguments:
-                values: ["current", "30-59", "60-89", "90-179", "charge-off"]
+                values: ["current", "30-59", "60-89", "90+"]
                 quote: true
           - unique
       - name: loan_count
@@ -125,8 +128,8 @@ models:
           - not_null
       - name: npl_rate
         description: >
-          Portfolio NPL rate = (90-179 + charge-off) loans / total disbursed
-          loans; identical on every row (portfolio-level KPI).
+          Portfolio NPL rate = 90+ outstanding / total outstanding; identical on
+          every row (portfolio-level KPI).
         tests:
           - not_null
 
