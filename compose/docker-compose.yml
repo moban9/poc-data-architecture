@@ -35,7 +35,8 @@ services:
     # TODO(Piston): FastAPI service + deterministic seed generator (02 doc).
     build: ../src/lms
     environment:
-      DATABASE_URL: postgresql://${LMS_DB_USER:-lms}:${LMS_DB_PASSWORD:-lms}@lms-postgres:5432/${LMS_DB_NAME:-lms}
+      DATABASE_URL: postgresql://${LMS_DB_USER:***@lms-postgres:5432/${LMS_DB_NAME:-lms}
+      LMS_TIMING: "1"   # structured /generate phase timing on stderr (perf work)
     ports:
     - "8000:8000"
     depends_on:

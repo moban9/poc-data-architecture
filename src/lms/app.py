@@ -27,7 +27,10 @@ from __future__ import annotations
 
 import calendar
 import io
+import logging
+import os
 import random
+import time
 import uuid
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
@@ -662,6 +665,11 @@ def generate(
 
     ensure_borrowers(db)
 
+    _log = logging.getLogger("lms.generate")
+    _t_start = time.perf_counter()
+    _flush_s = 0.0
+    _flushes = 0
+
     loans: list[dict] = []
     schedules: list = []  # list of tuples (RepaymentSchedule column order)
     events: list[dict] = []
@@ -672,11 +680,12 @@ def generate(
     total_schedules = 0
     total_events = 0
 
-    def _flush() -> None:
+    def _flush() -> float:
         # PostgreSQL COPY instead of bulk_insert_mappings — the schedule is the
         # hot table (~195k rows) and this skips SQLAlchemy's per-row dict→row
         # conversion + driver round-trips. Chunking (1000 loans/batch) is
         # preserved to stay well under the 512MB container cap.
+        _t = time.perf_counter()
         _bulk_insert(db, models.Loan, loans)
         _bulk_insert(db, models.RepaymentSchedule, schedules)
         _bulk_insert(db, models.LoanEvent, events)
@@ -684,6 +693,7 @@ def generate(
         loans.clear()
         schedules.clear()
         events.clear()
+        return time.perf_counter() - _t
 
     for is_dirty in dirty_flags:
         dirty_mode = None
@@ -699,10 +709,24 @@ def generate(
         total_schedules += len(schedule)
         total_events += len(evs)
         if len(loans) >= chunk:
-            _flush()
+            _flush_s += _flush()
+            _flushes += 1
 
     if loans:
-        _flush()
+        _flush_s += _flush()
+        _flushes += 1
+
+    if os.getenv("LMS_TIMING"):
+        _total = time.perf_counter() - _t_start
+        _log.info(
+            "timing count=%d total=%.2fs flush=%.2fs build=%.2fs flushes=%d rows_sched=%d",
+            count,
+            _total,
+            _flush_s,
+            _total - _flush_s,
+            _flushes,
+            total_schedules,
+        )
 
     LOANS_GENERATED.labels(mode=mode).inc(count)
     LOAN_EVENTS_GENERATED.labels(mode=mode).inc(total_events)
