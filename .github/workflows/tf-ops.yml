@@ -1,0 +1,72 @@
+name: tf-ops
+
+# Generic, authenticated ops shell for the POC GCP project.
+# Runs a bash script (passed as a workflow_dispatch input) on a runner that has
+# gcloud + terraform available and is authenticated via WIF.
+#
+#   gh workflow run tf-ops -f script='gcloud compute instances list'
+#
+# The script runs inside terraform/gcp (override with the `workdir` input), with
+# TF_VAR_project_id / TF_VAR_region / TF_VAR_zone pre-set and the GCS backend
+# already configured, so `terraform init` picks up the remote state.
+
+on:
+  workflow_dispatch:
+    inputs:
+      script:
+        description: "Bash script to execute"
+        required: true
+      workdir:
+        description: "Directory to run in (relative to repo root)"
+        required: false
+        default: "terraform/gcp"
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: tf-ops
+  cancel-in-progress: false
+
+jobs:
+  ops:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - id: gcp-auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/445642900277/locations/global/workloadIdentityPools/hermes-poc-pool/providers/hermes-oidc'
+          service_account: 'hermes-poc@project-955f419f-217d-449b-950.iam.gserviceaccount.com'
+
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
+          install_components: 'beta'
+
+      - name: run script
+        working-directory: ${{ inputs.workdir }}
+        env:
+          SCRIPT: ${{ inputs.script }}
+          PROJECT_ID: project-955f419f-217d-449b-950
+          TF_VAR_project_id: project-955f419f-217d-449b-950
+          TF_VAR_region: asia-southeast2
+          TF_VAR_zone: asia-southeast2-a
+          TF_IN_AUTOMATION: "1"
+          TF_INPUT: "0"
+        run: |
+          set -uo pipefail
+          printf '%s\n' "$SCRIPT" > /tmp/run.sh
+          echo "── script ──"
+          cat /tmp/run.sh
+          echo "── output ──"
+          bash /tmp/run.sh
+          rc=$?
+          echo "── exit code: $rc ──"
+          exit $rc
