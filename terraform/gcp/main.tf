@@ -1,5 +1,18 @@
 terraform {
   required_version = ">= 1.5"
+
+  # Remote state. Every GitHub Actions run is a fresh runner, so state MUST live
+  # outside the workspace — with local-only state `terraform apply` re-creates
+  # existing resources and fails with 409 "resource already exists".
+  #
+  # Bucket poc-tf-state-955f419f: asia-southeast2, versioning ON (state history),
+  # uniform bucket-level access, public access prevention.
+  # Existing local state can be adopted with `terraform init -migrate-state`.
+  backend "gcs" {
+    bucket = "poc-tf-state-955f419f"
+    prefix = "terraform/gcp"
+  }
+
   required_providers {
     google = {
       source  = "hashicorp/google"
