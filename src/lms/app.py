@@ -26,10 +26,12 @@ Modes for /generate
 from __future__ import annotations
 
 import calendar
+import io
 import random
 import uuid
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
@@ -150,6 +152,71 @@ def _add_months(d: date, months: int) -> date:
     return date(year, month, min(d.day, last_day))
 
 
+# Days in each month, indexed 1..12 (Feb treated as 29; the day-clamp below
+# reconciles it against the real month length). Cached so the amortization loop
+# never calls ``calendar.monthrange`` (which is comparatively expensive).
+_DAYS_IN_MONTH = (0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+
+
+def _is_leap(year: int) -> bool:
+    return year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)
+
+
+def _add_months_int(y: int, m: int, d: int, months: int) -> tuple[int, int, int]:
+    """Integer-month arithmetic mirroring ``_add_months`` (no ``date`` objects).
+
+    Returns ``(year, month, day)`` with the day clamped to the target month's
+    last day. Used on the /generate hot path so each instalment's due date is
+    produced with pure integer math instead of ``date`` + ``calendar.monthrange``.
+    """
+    # Normalize to a zero-based absolute month index, then back — this keeps
+    # the arithmetic exact for negative offsets too (floor-div semantics).
+    abs_month = y * 12 + (m - 1) + months
+    year, month0 = divmod(abs_month, 12)
+    month = month0 + 1
+    last = _DAYS_IN_MONTH[month]
+    if month == 2 and _is_leap(year):
+        last = 29
+    return year, month, d if d < last else last
+
+
+def _amortize_rows(
+    principal: float,
+    annual_rate_pct: float,
+    term_months: int,
+    y: int,
+    m: int,
+    d: int,
+) -> tuple[float, list[tuple[int, int, int, int, float, float]]]:
+    """Monthly-annuity schedule as integer date components.
+
+    Same annuity math as ``_amortize``, but each instalment's due date is kept
+    as ``(year, month, day)`` integers (no ``date``/``calendar``/ISO formatting
+    per iteration). Returns ``(monthly_installment, [(installment_no, year,
+    month, day, principal_due, interest_due), ...])``.
+    """
+    monthly_rate = (annual_rate_pct / 100.0) / 12.0
+    if monthly_rate <= 0:
+        installment = principal / term_months
+    else:
+        installment = principal * monthly_rate / (1 - (1 + monthly_rate) ** -term_months)
+    installment = round(installment, 2)
+
+    rows: list[tuple[int, int, int, int, float, float]] = []
+    balance = principal
+    day = d  # the disbursement day is re-clamped (not advanced) every month
+    for installment_no in range(1, term_months + 1):
+        interest_due = round(balance * monthly_rate, 2)
+        principal_due = round(installment - interest_due, 2)
+        if installment_no == term_months:
+            principal_due = round(balance, 2)
+            interest_due = round(installment - principal_due, 2)
+        year, month, dd = _add_months_int(y, m, day, installment_no)
+        rows.append((installment_no, year, month, dd, principal_due, interest_due))
+        balance = round(balance - principal_due, 2)
+    return installment, rows
+
+
 def _amortize(
     principal: float,
     annual_rate_pct: float,
@@ -238,6 +305,89 @@ def _make_loan_unit(loan_id: str, dirty_mode: Optional[str] = None):
             "status": constants.REPAYMENT_STATUS_SCHEDULED,
         }
         for (no, due_date, principal_due, interest_due) in schedule_rows
+    ]
+
+    occurred_at = _now() - timedelta(seconds=random.randint(0, 60 * 60 * 24 * 30))
+    events = [
+        {"id": _new_id("E"), "loan_id": loan_id, "event_type": "origination",
+         "amount": None, "occurred_at": occurred_at},
+    ]
+    if random.random() < 0.6:
+        events.append({"id": _new_id("E"), "loan_id": loan_id, "event_type": "disbursement",
+                       "amount": amount,
+                       "occurred_at": occurred_at + timedelta(minutes=random.randint(1, 60))})
+    if random.random() < 0.5:
+        events.append({"id": _new_id("E"), "loan_id": loan_id, "event_type": "payment",
+                       "amount": round(random.uniform(50.0, 2000.0), 2),
+                       "occurred_at": occurred_at + timedelta(days=random.randint(1, 30))})
+
+    if dirty_mode == "null_loan_id":
+        events[0]["loan_id"] = None
+
+    return loan, schedule, events
+
+
+def _make_loan_unit_rows(loan_id: str, dirty_mode: Optional[str] = None):
+    """Fast-path variant of ``_make_loan_unit`` for ``/generate``.
+
+    Identical loan/event semantics, but the repayment schedule is built as a
+    list of **tuples** (not dicts) with due dates produced by integer-month
+    arithmetic, so ``/generate`` skips the per-instalment ``date`` object +
+    tuple→dict conversion and inserts raw tuples via ``COPY``.
+
+    Returns ``(loan_dict, schedule_tuples, events_dicts)`` where
+    ``schedule_tuples`` are in ``RepaymentSchedule`` column order:
+    ``(id, loan_id, installment_no, due_date, principal_due, interest_due,
+    status)``.
+    """
+    amount = _random_amount()
+    currency = _random_currency()
+    origination_date = _random_date()
+    borrower_id = _random_borrower_id()
+
+    term_months = random.choice(constants.LOAN_TERMS)
+    interest_rate = round(random.uniform(constants.INTEREST_RATE_MIN, constants.INTEREST_RATE_MAX), 2)
+    # Disburse same day as origination; amortize from here via integer month math.
+    disb = _parse_date(origination_date)
+    monthly_installment, schedule_rows = _amortize_rows(
+        amount, interest_rate, term_months, disb.year, disb.month, disb.day
+    )
+    _y, _m, _d = schedule_rows[-1][1], schedule_rows[-1][2], schedule_rows[-1][3]
+    maturity_date = f"{_y:04d}-{_m:02d}-{_d:02d}"
+
+    if dirty_mode == "negative_amount":
+        amount = -round(random.uniform(100.0, 50_000.0), 2)
+    elif dirty_mode == "invalid_date":
+        origination_date = "not-a-date"
+    elif dirty_mode == "unsupported_currency":
+        currency = "XYZ"
+    elif dirty_mode == "orphan_borrower_id":
+        borrower_id = constants.ORPHAN_BORROWER_ID
+
+    loan = {
+        "id": loan_id,
+        "amount": amount,
+        "currency": currency,
+        "origination_date": origination_date,
+        "borrower_id": borrower_id,
+        "term_months": term_months,
+        "disbursement_date": disb.isoformat(),
+        "interest_rate": interest_rate,
+        "monthly_installment": monthly_installment,
+        "maturity_date": maturity_date,
+    }
+
+    schedule = [
+        (
+            _new_id("S"),
+            loan_id,
+            installment_no,
+            f"{year:04d}-{month:02d}-{day:02d}",
+            principal_due,
+            interest_due,
+            constants.REPAYMENT_STATUS_SCHEDULED,
+        )
+        for (installment_no, year, month, day, principal_due, interest_due) in schedule_rows
     ]
 
     occurred_at = _now() - timedelta(seconds=random.randint(0, 60 * 60 * 24 * 30))
@@ -393,6 +543,62 @@ def ensure_borrowers(db: Session) -> int:
     return len(rows)
 
 
+def _to_db_value(value):
+    """Coerce a Python value for the ``COPY`` text-format insert path.
+
+    ``Numeric`` columns must receive ``Decimal`` (SQLAlchemy rounds floats the
+    same way the ORM would); ``float`` → ``Decimal(str(v))`` preserves the
+    two-decimal rounding from ``_amortize``/``_amortize_rows`` exactly.
+    """
+    if value is None:
+        return None
+    if isinstance(value, float):
+        return Decimal(str(value))
+    return value
+
+
+def _copy_fmt(value) -> str:
+    """Render one Python value as a PostgreSQL COPY text-format field."""
+    if value is None:
+        return "\\N"
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return str(value)
+
+
+def _bulk_insert(db: Session, model, rows: list) -> None:
+    """Bulk-insert ``rows`` (dicts or tuples) via PostgreSQL ``COPY``.
+
+    Replaces ``bulk_insert_mappings`` — its per-row dict→row conversion and
+    driver round-trips were the dominant cost for ~195k ``repayment_schedule``
+    rows. ``COPY`` streams a single tab-delimited buffer into the server in one
+    round-trip. Tuples are expected in model column order; dicts are ordered by
+    column. Values are coerced with ``_to_db_value`` (float→Decimal) so
+    ``Numeric``/``DateTime`` columns round-trip identically to the ORM.
+    """
+    if not rows:
+        return
+    columns = list(model.__table__.columns)
+    col_names = [c.name for c in columns]
+    table = model.__table__.name
+
+    buf = io.StringIO()
+    if isinstance(rows[0], dict):
+        for row in rows:
+            buf.write("\t".join(_copy_fmt(_to_db_value(row.get(name))) for name in col_names))
+            buf.write("\n")
+    else:
+        for row in rows:
+            buf.write("\t".join(_copy_fmt(_to_db_value(v)) for v in row))
+            buf.write("\n")
+    buf.seek(0)
+
+    # Reuse the session's transaction; reach the raw DBAPI (psycopg2) connection.
+    raw_conn = db.connection().connection
+    with raw_conn.cursor() as cur:
+        cur.copy_from(buf, table, columns=col_names)
+
+
 def _event_to_dict(ev: models.LoanEvent) -> dict:
     return {
         "id": ev.id,
@@ -457,7 +663,7 @@ def generate(
     ensure_borrowers(db)
 
     loans: list[dict] = []
-    schedules: list[dict] = []
+    schedules: list = []  # list of tuples (RepaymentSchedule column order)
     events: list[dict] = []
     dirty_count = 0
     mode_counts = {m: 0 for m in constants.DIRTY_MODES}
@@ -467,9 +673,13 @@ def generate(
     total_events = 0
 
     def _flush() -> None:
-        db.bulk_insert_mappings(models.Loan, loans)
-        db.bulk_insert_mappings(models.RepaymentSchedule, schedules)
-        db.bulk_insert_mappings(models.LoanEvent, events)
+        # PostgreSQL COPY instead of bulk_insert_mappings — the schedule is the
+        # hot table (~195k rows) and this skips SQLAlchemy's per-row dict→row
+        # conversion + driver round-trips. Chunking (1000 loans/batch) is
+        # preserved to stay well under the 512MB container cap.
+        _bulk_insert(db, models.Loan, loans)
+        _bulk_insert(db, models.RepaymentSchedule, schedules)
+        _bulk_insert(db, models.LoanEvent, events)
         db.commit()
         loans.clear()
         schedules.clear()
@@ -482,7 +692,7 @@ def generate(
             mode_i += 1
             dirty_count += 1
             mode_counts[dirty_mode] += 1
-        loan, schedule, evs = _make_loan_unit(_new_id("L"), dirty_mode)
+        loan, schedule, evs = _make_loan_unit_rows(_new_id("L"), dirty_mode)
         loans.append(loan)
         schedules.extend(schedule)
         events.extend(evs)

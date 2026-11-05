@@ -63,6 +63,40 @@ def test_amortize_annuity():
     assert all(r[1] == date.fromisoformat(r[1]).isoformat() for r in rows)  # valid dates
 
 
+def test_amortize_rows_matches_amortize():
+    """The /generate fast path (_amortize_rows) must match _amortize exactly,
+    including month-end clamping and leap years."""
+    cases = [
+        (2023, 1, 31), (2024, 2, 29), (2024, 3, 31), (2023, 11, 30),
+        (2021, 2, 28), (2024, 1, 31),
+    ]
+    for (y, m, d) in cases:
+        for term in (6, 12, 24, 36):
+            inst_a, rows_a = app._amortize(12345.67, 12.0, term, date(y, m, d))
+            inst_b, rows_b = app._amortize_rows(12345.67, 12.0, term, y, m, d)
+            assert inst_a == inst_b
+            for ra, rb in zip(rows_a, rows_b):
+                # due_date, principal_due, interest_due must be identical
+                assert ra[1] == f"{rb[1]:04d}-{rb[2]:02d}-{rb[3]:02d}"
+                assert ra[2] == rb[4] and ra[3] == rb[5]
+
+
+def test_make_loan_unit_rows():
+    """Fast-path unit builder returns schedule as column-order tuples."""
+    loan, schedule, events = app._make_loan_unit_rows("L-rows", dirty_mode=None)
+    assert loan["term_months"] in constants.LOAN_TERMS
+    assert len(schedule) == loan["term_months"]
+    # tuple order == RepaymentSchedule columns: id, loan_id, installment_no,
+    # due_date, principal_due, interest_due, status
+    for row in schedule:
+        assert len(row) == 7
+        assert row[1] == "L-rows"
+        assert row[6] == constants.REPAYMENT_STATUS_SCHEDULED
+        assert row[3] == date.fromisoformat(row[3]).isoformat()
+    assert loan["maturity_date"] == schedule[-1][3]
+    assert any(e["event_type"] == "origination" for e in events)
+
+
 def test_make_loan_unit_clean():
     loan, schedule, events = app._make_loan_unit("L-test", dirty_mode=None)
     for key in ("id", "amount", "currency", "origination_date", "borrower_id",
