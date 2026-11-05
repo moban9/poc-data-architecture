@@ -462,6 +462,19 @@ def generate(
     dirty_count = 0
     mode_counts = {m: 0 for m in constants.DIRTY_MODES}
     mode_i = 0
+    chunk = 1000
+    total_schedules = 0
+    total_events = 0
+
+    def _flush() -> None:
+        db.bulk_insert_mappings(models.Loan, loans)
+        db.bulk_insert_mappings(models.RepaymentSchedule, schedules)
+        db.bulk_insert_mappings(models.LoanEvent, events)
+        db.commit()
+        loans.clear()
+        schedules.clear()
+        events.clear()
+
     for is_dirty in dirty_flags:
         dirty_mode = None
         if is_dirty:
@@ -473,21 +486,23 @@ def generate(
         loans.append(loan)
         schedules.extend(schedule)
         events.extend(evs)
+        total_schedules += len(schedule)
+        total_events += len(evs)
+        if len(loans) >= chunk:
+            _flush()
 
-    db.bulk_insert_mappings(models.Loan, loans)
-    db.bulk_insert_mappings(models.RepaymentSchedule, schedules)
-    db.bulk_insert_mappings(models.LoanEvent, events)
-    db.commit()
+    if loans:
+        _flush()
 
-    LOANS_GENERATED.labels(mode=mode).inc(len(loans))
-    LOAN_EVENTS_GENERATED.labels(mode=mode).inc(len(events))
+    LOANS_GENERATED.labels(mode=mode).inc(count)
+    LOAN_EVENTS_GENERATED.labels(mode=mode).inc(total_events)
 
     return {
         "mode": mode,
         "requested": count,
-        "loans": len(loans),
-        "repayment_schedule": len(schedules),
-        "loan_events": len(events),
+        "loans": count,
+        "repayment_schedule": total_schedules,
+        "loan_events": total_events,
         "borrowers_ensured": len(constants.SEED_BORROWERS),
         "dirty": dirty_count,
         "dirty_modes": mode_counts,
