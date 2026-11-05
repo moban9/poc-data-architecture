@@ -34,6 +34,6 @@ output "lb_ip_address" {
 }
 
 output "managed_cert_id" {
-  description = "Google-managed SSL certificate id"
-  value       = google_compute_managed_ssl_certificate.cert.id
+  description = "Google-managed SSL certificate id (12-hostname cert)"
+  value       = google_compute_managed_ssl_certificate.cert_v2.id
 }
