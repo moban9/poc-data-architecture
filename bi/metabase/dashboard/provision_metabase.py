@@ -91,7 +91,10 @@ def load_cards(sql_dir: Path) -> list[dict]:
             cards.append(current)
 
     for c in cards:
-        c["sql"] = "\n".join(c["sql"]).strip()
+        # Trino's /v1/statement endpoint parses a single statement and rejects a
+        # trailing `;` (the CLI strips it, the JDBC driver does not). The card
+        # bodies use `;` as a human-readable terminator, so strip it before send.
+        c["sql"] = re.sub(r";\s*$", "", "\n".join(c["sql"]).strip())
         if not c["sql"]:
             raise SystemExit(f"[parse] card '{c['name']}' has an empty query body")
         if c["display"] not in VALID_DISPLAY:
@@ -260,13 +263,13 @@ def main() -> int:
         if not args.create_db:
             raise SystemExit(
                 f"[db] no Metabase database named '{args.database_name}'. Create it first "
-                f"(docs/04-metabase.md §3: type Trino, host trino, port 8080, catalog lakehouse, "
+                f"(docs/04-metabase.md §3: type Starburst (Trino), host trino, port 8080, catalog lakehouse, "
                 f"schema gold), or re-run with --create-db."
             )
         _, db = mb.request("POST", "/api/database", {
             "name": args.database_name,
-            "engine": "trino",
-            "details": {"host": "trino", "port": 8080, "user": "meridian", "password": "",
+            "engine": "starburst",
+            "details": {"host": "trino", "port": 8080, "user": "trino", "password": "",
                         "ssl": False, "catalog": "lakehouse", "schema": "gold"},
         })
         db = db or {}
