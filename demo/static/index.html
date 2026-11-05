@@ -380,16 +380,23 @@ function renderTargets(systems) {
   box.innerHTML = entries.map(s =>
     '<span class="chip ' + (s.reachable ? "on" : "off") + '">' +
       '<span class="led"></span><b>' + s.label + '</b>' +
-      '<span class="mode">' + (s.reachable ? "live" : "simulated") + '</span></span>'
+      '<span class="mode">' + (s.reachable ? "live" : "down") + '</span></span>'
   ).join("");
 }
 
 function showTicket(t) {
   if (!t) { ticketBox.hidden = true; return; }
   ticketBox.hidden = false;
+  if (t.error) {
+    ticketBox.innerHTML =
+      '<h3>🚨 Incident ticket</h3>' +
+      '<p><b>Ticket NOT created</b></p>' +
+      '<p>' + (t.error || "") + '</p>';
+    return;
+  }
   const link = t.url ? ' — <a href="' + t.url + '" target="_blank" rel="noopener">' + t.url + '</a>' : "";
   ticketBox.innerHTML =
-    '<h3>🚨 Incident ticket ' + (t.simulated ? "(simulated)" : "") + '</h3>' +
+    '<h3>🚨 Incident ticket</h3>' +
     '<p><b>' + (t.title || "") + '</b></p>' +
     '<p>id: <code>' + t.id + '</code> · priority: ' + (t.priority || "urgent") + link + '</p>' +
     '<p>' + (t.note || "") + '</p>';
@@ -408,7 +415,7 @@ function buildQuery(params) {
 
 function injectSuffix(injected) {
   if (!injected || injected.count == null) return "";
-  const sim = injected.real ? "" : " (simulated)";
+  const sim = injected.real ? "" : " (failed)";
   return " — injected " + Number(injected.count).toLocaleString() + " rows · mode " + injected.mode + sim;
 }
 

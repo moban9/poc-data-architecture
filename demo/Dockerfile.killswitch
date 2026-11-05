@@ -1,0 +1,16 @@
+# Demo kill-switch — narrowly-scoped control of the POC pipeline for the
+# failure/incident demo scenarios. Talks to the HOST docker daemon through the
+# mounted socket and runs ONLY the allowlisted commands in demo/killswitch.py
+# (stop/start the MinIO object store, run the dbt pipeline).
+#
+# `docker:24-cli` is just the docker CLI (no daemon); python3 is added to host
+# the HTTP control API.
+FROM docker:24-cli
+
+RUN apk add --no-cache python3
+
+COPY killswitch.py /killswitch.py
+
+EXPOSE 8002
+
+CMD ["python3", "/killswitch.py"]

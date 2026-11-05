@@ -74,6 +74,8 @@ services:
       PLANE_WORKSPACE: ${PLANE_WORKSPACE:-}
       PLANE_PROJECT_ID: ${PLANE_PROJECT_ID:-}
       PUSHGATEWAY_URL: ${PUSHGATEWAY_URL:-http://pushgateway:9091}
+      PROMETHEUS_URL: ${PROMETHEUS_URL:-http://prometheus:9090}
+      KILLSWITCH_URL: ${KILLSWITCH_URL:-http://demo-killswitch:8002}
     # Fallback path when Plane runs as its own compose project (its `plane`
     # service then is NOT resolvable from the lms-poc network — that shows up as
     # the panel reporting plane reachable:false). Point PLANE_API_URL at
@@ -85,6 +87,27 @@ services:
     depends_on:
     - lms-api
     mem_limit: 256m
+    cpus: 0.25
+
+  # Demo kill-switch — narrowly-scoped, reversible control of the pipeline for
+  # the failure/incident demo scenarios. Talks to the HOST docker daemon through
+  # the mounted socket and runs ONLY the allowlisted commands in
+  # demo/killswitch.py (docker stop/start the MinIO object store, run the dbt
+  # pipeline by exec-ing into the dbt-runner container). No arbitrary commands.
+  demo-killswitch:
+    restart: unless-stopped
+    build:
+      context: ../demo
+      dockerfile: Dockerfile.killswitch
+    environment:
+      ICEBERG_SINK_CONTAINER: ${ICEBERG_SINK_CONTAINER:-lms-monitoring-minio-1}
+      # Container that already has dbt + the mounted dbt project + network DNS.
+      DBT_RUNNER_CONTAINER: ${DBT_RUNNER_CONTAINER:-lms-monitoring-dagster-1}
+    volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+    expose:
+    - "8002"
+    mem_limit: 128m
     cpus: 0.25
 
   # ── Lakehouse: object storage + catalog ────────────────────────────────────

@@ -1,16 +1,24 @@
 #!/usr/bin/env python3
-"""POC demo control panel — FastAPI harness.
+"""POC demo control panel — FastAPI harness (REAL results only).
 
 The control panel drives *scenarios* over the single-VM Docker stack:
 
     PostgreSQL LMS → Debezium CDC → Kafka → Iceberg → dbt (Bronze/Silver/Gold)
                    → Trino → Metabase
 
-The harness reads target URLs from the environment and, where a system is
-reachable, talks to it for real; where it is not (or the subsystem is still a
-compose TODO), it simulates realistic per-hop behavior — fake latencies, a
-data-quality warning, a hard failure, and a failure that opens an incident
-ticket in Plane (the ticketing engine).
+Every hop now reports a REAL observation of the live pipeline — a real source
+write, the real Kafka Connect connector state, the real dbt layer/DQ metrics from
+Prometheus, the real Trino/Metabase reachability. There are no hard-coded or
+simulated results anywhere.
+
+The two "break it" scenarios drive a narrow kill-switch (demo/killswitch.py):
+
+  * failure  → the kill-switch docker-stops the MinIO object store, which the
+               Iceberg sink writes to. The sink genuinely fails and Grafana's
+               Iceberg node (a live blackbox probe of MinIO) turns red.
+  * incident → injects dirty rows, runs the real dbt pipeline (the DQ gate),
+               and the DQ genuinely breaches (dbt_test_failures > 0); a REAL
+               Plane ticket is then opened. No simulated-ticket fallback.
 
 Endpoints
 ---------
@@ -19,33 +27,31 @@ Endpoints
   GET  /health                  → liveness probe
   POST /scenario/{name}[?count=N&mode=clean|dirty|mixed] → run a scenario (JSON)
   POST /scenario/{name}?stream=sse   (or Accept: text/event-stream) → SSE
-      · data-injection scenarios (healthy/dirty) call the real LMS /generate API
-      · the npl-book scenario calls the real LMS /scenarios/loan-book API
 
 Scenarios: dirty, healthy, failure, incident, npl-book.
 
-Environment (all optional — unreachable/absent → simulated)
------------------------------------------------------------
-  LMS_API_URL        e.g. http://localhost:8000        (source REST API)
-  KAFKA_CONNECT_URL  e.g. http://localhost:8083        (Debezium/Kafka Connect)
-  TRINO_URL          e.g. http://localhost:8080        (query engine)
-  METABASE_URL       e.g. http://localhost:8085        (BI)
-  DAGSTER_URL        e.g. http://localhost:3000        (dbt orchestration)
-  PLANE_API_URL      e.g. http://localhost:8000/api/v1 (ticketing)
-  PLANE_API_KEY      workspace API key (for real tickets)
+Environment
+-----------
+  LMS_API_URL        e.g. http://lms-api:8000        (source REST API)
+  KAFKA_CONNECT_URL  e.g. http://connect:8083        (Debezium/Kafka Connect)
+  PROMETHEUS_URL     e.g. http://prometheus:9090     (metrics for dbt/DQ state)
+  TRINO_URL          e.g. http://trino:8080          (query engine)
+  METABASE_URL       e.g. http://metabase:3000       (BI)
+  PLANE_API_URL      e.g. http://plane:8000/api/v1   (ticketing)
+  PLANE_API_KEY      workspace API key (required for a REAL ticket)
   PLANE_WORKSPACE    workspace slug
   PLANE_PROJECT_ID   project UUID
   PLANE_UI_URL       UI base for the ticket link
-  LATENCY_SCALE      multiplier on simulated latencies (default 1.0; 0.1 = fast)
+  KILLSWITCH_URL     e.g. http://killswitch:8002     (failure/incident control)
 """
 from __future__ import annotations
 
 import asyncio
 import json
 import os
-import random
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 from pathlib import Path
@@ -58,7 +64,7 @@ from fastapi.staticfiles import StaticFiles
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 
-app = FastAPI(title="POC pipeline control panel", version="0.1.0")
+app = FastAPI(title="POC pipeline control panel", version="0.2.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -70,9 +76,6 @@ app.add_middleware(
 # Topology model
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Hops are ordered. Each hop lights a *node* and, when it runs, animates the
-# *edge* feeding that node (null for the source). Kafka is folded into the
-# CDC→Bronze edge (Debezium → Kafka → Iceberg sink).
 HOPS = [
     {"id": "lms",    "node": "lms",    "edge": None,          "label": "Source write (Postgres)"},
     {"id": "cdc",    "node": "cdc",    "edge": "lms-cdc",     "label": "Debezium capture"},
@@ -83,118 +86,48 @@ HOPS = [
 ]
 
 SCENARIOS = {
-    "healthy": {
-        "title": "Healthy end-to-end",
-        "status": "success",
-        "hops": {
-            "lms":    {"latency": 45,    "status": "success", "metric": "1,284 rows",
-                       "message": "Loan write committed to lms-postgres (wal_level=logical)"},
-            "cdc":    {"latency": 320,   "status": "success", "metric": "1,284 changes",
-                       "message": "Debezium lms-connector: snapshot + streaming, lag 0 ms"},
-            "kafka":  {"latency": 210,   "status": "success", "metric": "1,284 msgs",
-                       "message": "Kafka → Iceberg sink wrote Bronze table (no retries)"},
-            "silver": {"latency": 2600,  "status": "success", "metric": "1,284 rows",
-                       "message": "dbt Silver: dedupe + type coercion, 0 schema drift"},
-            "gold":   {"latency": 1900,  "status": "success", "metric": "0 failed",
-                       "message": "dbt Gold: loan_portfolio aggregate, all DQ checks pass"},
-            "bi":     {"latency": 160,   "status": "success", "metric": "41 ms",
-                       "message": "Trino query 41 ms → Metabase dashboard refreshed"},
-        },
-    },
-    "dirty": {
-        "title": "Dirty data → DQ warning",
-        "status": "warning",
-        "hops": {
-            "lms":    {"latency": 45,    "status": "success", "metric": "1,284 rows",
-                       "message": "Loan write committed (14 rows with NULL days_past_due)"},
-            "cdc":    {"latency": 320,   "status": "success", "metric": "1,284 changes",
-                       "message": "Debezium captured all changes, incl. NULL dpd rows"},
-            "kafka":  {"latency": 210,   "status": "success", "metric": "1,284 msgs",
-                       "message": "Iceberg Bronze ingest OK — schema drift tolerated"},
-            "silver": {"latency": 2600,  "status": "success", "metric": "1,284 rows",
-                       "message": "dbt Silver: 14 rows flagged missing days_past_due"},
-            "gold":   {"latency": 1900,  "status": "warning", "metric": "14 / 1,284 null",
-                       "message": "DQ check FAILED: days_past_due null rate 1.1% > 0.5% threshold"},
-            "bi":     {"latency": 160,   "status": "success", "metric": "1,284 loans",
-                       "message": "Trino → Metabase dashboard shows a DQ banner"},
-        },
-    },
-    "failure": {
-        "title": "Pipeline failure (Iceberg sink)",
-        "status": "failed",
-        "hops": {
-            "lms":    {"latency": 45,    "status": "success", "metric": "1,284 rows",
-                       "message": "Loan write committed to lms-postgres"},
-            "cdc":    {"latency": 320,   "status": "success", "metric": "1,284 changes",
-                       "message": "Debezium captured changes, published to Kafka"},
-            "kafka":  {"latency": 900,   "status": "failure", "metric": "commit failed",
-                       "message": "Iceberg sink commit FAILED: MinIO 403 (bad S3 creds) — retries exhausted"},
-            "silver": {"status": "skipped"},
-            "gold":   {"status": "skipped"},
-            "bi":     {"status": "skipped"},
-        },
-    },
-    "incident": {
-        "title": "DQ SLO breach → incident ticket",
-        "status": "incident",
-        "hops": {
-            "lms":    {"latency": 45,    "status": "success", "metric": "9,412 rows",
-                       "message": "Bulk loan import committed (nightly batch)"},
-            "cdc":    {"latency": 340,   "status": "success", "metric": "9,412 changes",
-                       "message": "Debezium captured batch, lag 0 ms"},
-            "kafka":  {"latency": 230,   "status": "success", "metric": "9,412 msgs",
-                       "message": "Iceberg Bronze ingest OK"},
-            "silver": {"latency": 2800,  "status": "success", "metric": "9,412 rows",
-                       "message": "dbt Silver transform OK"},
-            "gold":   {"latency": 2200,  "status": "failure", "metric": "SLO breach",
-                       "message": "DQ SLO BREACH: days_past_due null rate 6.8% > 2% pager threshold"},
-            "bi":     {"status": "skipped"},
-        },
-    },
-    "npl-book": {
-        "title": "NPL loan book (real repayment schedules)",
-        "status": "success",
-        "hops": {
-            "lms":    {"latency": 60,    "status": "success", "metric": None,
-                       "message": "Loan book written with real repayment schedules across 4 delinquency buckets"},
-            "cdc":    {"latency": 320,   "status": "success", "metric": "4 buckets",
-                       "message": "Debezium captured loan + repayment_schedule for every bucket"},
-            "kafka":  {"latency": 210,   "status": "success", "metric": "4 buckets",
-                       "message": "Iceberg Bronze ingest OK"},
-            "silver": {"latency": 2600,  "status": "success", "metric": "0 failed",
-                       "message": "dbt Silver: clean rows, 0 DQ failures"},
-            "gold":   {"latency": 1900,  "status": "success", "metric": "4 buckets",
-                       "message": "dbt Gold loan_delinquency populated from due_date: current/30-59/60-89/90+"},
-            "bi":     {"latency": 160,   "status": "success", "metric": "4 buckets",
-                       "message": "Trino → Metabase NPL dashboard refreshed"},
-        },
-    },
+    "healthy":  {"title": "Healthy end-to-end",                      "status": "success"},
+    "dirty":    {"title": "Dirty data → DQ warning",                  "status": "warning"},
+    "npl-book": {"title": "NPL loan book (real repayment schedules)", "status": "success"},
+    "failure":  {"title": "Pipeline failure (Iceberg sink)",          "status": "failed"},
+    "incident": {"title": "DQ SLO breach → incident ticket",          "status": "incident"},
 }
 
-# External systems the harness may reach (target URLs from env).
+# External systems the harness probes at start (target URLs from env).
 SYSTEMS = [
     ("lms_api",       "LMS API",       "LMS_API_URL"),
     ("kafka_connect", "Kafka Connect", "KAFKA_CONNECT_URL"),
+    ("prometheus",    "Prometheus",    "PROMETHEUS_URL"),
     ("trino",         "Trino",         "TRINO_URL"),
     ("metabase",      "Metabase",      "METABASE_URL"),
-    ("dagster",       "Dagster",       "DAGSTER_URL"),
     ("plane",         "Plane",         "PLANE_API_URL"),
 ]
 
 _DEFAULT_URLS = {
     "LMS_API_URL": "http://localhost:8000",
     "KAFKA_CONNECT_URL": "http://localhost:8083",
+    "PROMETHEUS_URL": "http://localhost:9090",
     "TRINO_URL": "http://localhost:8080",
     "METABASE_URL": "http://localhost:8085",
-    "DAGSTER_URL": "http://localhost:3000",
     "PLANE_API_URL": "http://localhost:8000/api/v1",
+    "KILLSWITCH_URL": "http://killswitch:8002",
 }
 
+# Data-injection scenarios drive the real LMS /generate endpoint.
+DATA_MODES = {"healthy": "clean", "dirty": "dirty"}
+DEFAULT_INJECT_COUNT = 10000
 
-def _latency_ms(ms: int) -> float:
-    scale = float(os.environ.get("LATENCY_SCALE", "1.0"))
-    jitter = random.uniform(0.9, 1.1)
-    return max(1.0, ms * scale * jitter)
+# The npl-book scenario drives the real LMS /scenarios/loan-book endpoint.
+NPL_BOOK_SCENARIO = "npl-book"
+NPL_DEFAULT_PER_BUCKET = 5
+
+# The incident scenario injects a fully-dirty batch large enough to breach the
+# DQ SLO (0 failing tests) and trip the pager, then runs the real dbt gate.
+INCIDENT_DIRTY_COUNT = 2000
+
+# The failure scenario injects a small clean batch so there is in-flight data
+# for the (then-killed) Iceberg sink, then stops the object store.
+FAILURE_INJECT_COUNT = 1000
 
 
 def _url(env_key: str) -> str:
@@ -209,16 +142,12 @@ def _reachable(url: str, timeout: float = 1.5) -> bool:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return 200 <= r.status < 500
     except urllib.error.HTTPError as exc:
-        # urlopen raises on 4xx/5xx; a served response (even 401/404) still means
-        # the service is up — only 5xx counts as down.
         return exc.code < 500
     except Exception:
         return False
 
 
 async def _probe_systems() -> dict:
-    """Snapshot which target systems are reachable (real) vs simulated."""
-
     async def one(sid, label, env_key):
         url = _url(env_key)
         ok = await asyncio.to_thread(_reachable, url)
@@ -228,60 +157,103 @@ async def _probe_systems() -> dict:
     return {r["id"]: r for r in results}
 
 
-# Data-injection scenarios (healthy/dirty) drive the real LMS /generate endpoint.
-# Default mode per scenario when the caller doesn't pass an explicit mode; the
-# frontend inject control passes an explicit mode (clean|dirty|mixed) instead.
-DATA_MODES = {"healthy": "clean", "dirty": "dirty"}
-DEFAULT_INJECT_COUNT = 10000
+# ─────────────────────────────────────────────────────────────────────────────
+# Real observations
+# ─────────────────────────────────────────────────────────────────────────────
 
-# The npl-book scenario drives the real LMS /scenarios/loan-book endpoint (a
-# deterministic loan book that populates every dbt Gold delinquency bucket).
-NPL_BOOK_SCENARIO = "npl-book"
-NPL_DEFAULT_PER_BUCKET = 5
+def _json_get(url: str, timeout: float = 5.0) -> dict:
+    """GET a URL and return parsed JSON, or raise with a real error message."""
+    req = urllib.request.Request(url, method="GET")
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.load(r)
 
 
-def _parse_int(value) -> int | None:
-    if value is None or value == "":
-        return None
+def _kafka_connect_connector_state(connector: str) -> dict:
+    """Real Kafka Connect connector state: {state: "RUNNING"|...|"?", error}."""
+    base = _url("KAFKA_CONNECT_URL")
+    if not base:
+        return {"state": "?", "error": "KAFKA_CONNECT_URL not configured"}
+    url = f"{base}/connectors/{connector}/status"
     try:
-        return int(value)
-    except (TypeError, ValueError):
+        data = _json_get(url)
+        state = (data.get("connector") or {}).get("state", "?")
+        return {"state": state, "error": None}
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", "replace")[:300]
+        return {"state": "?", "error": f"HTTP {exc.code}: {body}"}
+    except Exception as exc:  # noqa: BLE001
+        return {"state": "?", "error": str(exc)}
+
+
+def _prom_metric_value(expr: str) -> float | None:
+    """First numeric value of a Prometheus instant query, or None."""
+    base = _url("PROMETHEUS_URL")
+    if not base:
+        return None
+    url = f"{base}/api/v1/query?query={urllib.parse.quote(expr)}"
+    try:
+        data = _json_get(url)
+        results = data.get("data", {}).get("result", [])
+        if not results:
+            return None
+        value = results[0].get("value", [None, None])[1]
+        return float(value)
+    except Exception:  # noqa: BLE001
         return None
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Kill-switch (failure / incident control)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _killswitch(path: str, method: str = "GET", timeout: float = 900.0) -> dict:
+    base = _url("KILLSWITCH_URL")
+    if not base:
+        return {"ok": False, "error": "KILLSWITCH_URL not configured"}
+    req = urllib.request.Request(f"{base.rstrip('/')}{path}", method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return {"ok": True, **json.load(r)}
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", "replace")[:500]
+        return {"ok": False, "error": f"kill-switch HTTP {exc.code}: {body}"}
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# LMS source writes (real)
+# ─────────────────────────────────────────────────────────────────────────────
 
 def _lms_generate(count: int, mode: str) -> dict:
-    """POST {LMS_API_URL}/generate?count=N&mode=MODE → parsed JSON body."""
     base = _url("LMS_API_URL")
     url = f"{base}/generate?count={count}&mode={mode}"
     req = urllib.request.Request(url, method="POST")
-    with urllib.request.urlopen(req, timeout=30) as r:
+    with urllib.request.urlopen(req, timeout=60) as r:
         return json.load(r)
 
 
 async def _inject_lms(count: int, mode: str) -> dict:
-    """Call the real LMS /generate endpoint; return {ok, count, error}."""
     try:
         resp = await asyncio.to_thread(_lms_generate, count, mode)
     except Exception as exc:  # noqa: BLE001
-        return {"ok": False, "count": count, "error": str(exc)}
+        return {"ok": False, "count": count, "mode": mode, "error": str(exc)}
 
-    # LMS API response shape is still being finalized — extract the injected
-    # count defensively from whichever common field carries it.
     injected = None
     if isinstance(resp, dict):
-        for key in ("count", "injected", "rows", "total", "generated"):
+        for key in ("count", "injected", "rows", "total", "generated", "loans"):
             if isinstance(resp.get(key), int):
                 injected = resp[key]
                 break
     return {
         "ok": True,
         "count": injected if injected is not None else count,
+        "mode": mode,
         "error": None,
     }
 
 
 def _lms_loan_book(n_per_bucket: int) -> dict:
-    """POST {LMS_API_URL}/scenarios/loan-book → parsed JSON body."""
     base = _url("LMS_API_URL")
     url = f"{base}/scenarios/loan-book"
     req = urllib.request.Request(
@@ -290,43 +262,31 @@ def _lms_loan_book(n_per_bucket: int) -> dict:
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=30) as r:
+    with urllib.request.urlopen(req, timeout=60) as r:
         return json.load(r)
 
 
 async def _inject_loan_book(n_per_bucket: int) -> dict:
-    """Call the real LMS /scenarios/loan-book endpoint; return {ok, ...}."""
     try:
         resp = await asyncio.to_thread(_lms_loan_book, n_per_bucket)
     except Exception as exc:  # noqa: BLE001
         return {"ok": False, "n_per_bucket": n_per_bucket, "error": str(exc)}
-
-    created = resp.get("created_loans") if isinstance(resp, dict) else None
-    payments = resp.get("payments") if isinstance(resp, dict) else None
-    per_bucket = resp.get("per_bucket") if isinstance(resp, dict) else None
     return {
         "ok": True,
         "n_per_bucket": n_per_bucket,
-        "created_loans": created,
-        "payments": payments,
-        "per_bucket": per_bucket,
+        "created_loans": resp.get("created_loans") if isinstance(resp, dict) else None,
+        "payments": resp.get("payments") if isinstance(resp, dict) else None,
+        "per_bucket": resp.get("per_bucket") if isinstance(resp, dict) else None,
         "error": None,
     }
 
 
-def _simulated_ticket(run_id: str, title: str, note: str) -> dict:
-    return {
-        "id": f"sim-{uuid.uuid4().hex[:8]}",
-        "title": title,
-        "url": None,
-        "priority": "urgent",
-        "simulated": True,
-        "note": note,
-    }
-
+# ─────────────────────────────────────────────────────────────────────────────
+# Plane ticket (REAL only — no simulated fallback)
+# ─────────────────────────────────────────────────────────────────────────────
 
 async def _create_plane_ticket(run_id: str, breach_msg: str) -> dict:
-    """Open a real ticket in Plane when configured; otherwise simulate one."""
+    """Open a real Plane ticket. Returns {id,url,...} on success, or {error:...}."""
     base = _url("PLANE_API_URL")
     key = os.environ.get("PLANE_API_KEY", "")
     ws = os.environ.get("PLANE_WORKSPACE", "")
@@ -334,9 +294,10 @@ async def _create_plane_ticket(run_id: str, breach_msg: str) -> dict:
     title = f"[INCIDENT] gold DQ SLO breach (run {run_id[:8]})"
 
     if not (key and ws and proj):
-        return _simulated_ticket(
-            run_id, title, note="PLANE_API_KEY / PLANE_WORKSPACE / PLANE_PROJECT_ID not set"
-        )
+        return {
+            "error": "Plane not configured: PLANE_API_KEY / PLANE_WORKSPACE / "
+                     "PLANE_PROJECT_ID missing — no ticket created",
+        }
 
     payload = {
         "name": title,
@@ -352,21 +313,16 @@ async def _create_plane_ticket(run_id: str, breach_msg: str) -> dict:
             headers={"Content-Type": "application/json", "X-API-Key": key},
             method="POST",
         )
-        try:
-            with urllib.request.urlopen(req, timeout=8) as r:
-                return json.load(r)
-        except urllib.error.HTTPError as exc:
-            # urllib's str(HTTPError) is only "HTTP Error 404: Not Found" — the
-            # Plane response body carries the actual reason (bad key, wrong
-            # workspace slug, unknown project id, missing state). Surface it so
-            # a failed ticket never silently degrades to a bare "unreachable".
-            body = exc.read().decode("utf-8", "replace")[:500]
-            raise RuntimeError(f"Plane {exc.code} from POST {url}: {body}") from exc
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return json.load(r)
 
     try:
         resp = await asyncio.to_thread(_post)
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", "replace")[:500]
+        return {"error": f"Plane rejected ticket: HTTP {exc.code}: {body}"}
     except Exception as exc:  # noqa: BLE001
-        return _simulated_ticket(run_id, title, note=f"Plane unreachable: {exc}")
+        return {"error": f"Plane unreachable: {exc}"}
 
     ui = os.environ.get("PLANE_UI_URL", "http://localhost:3000")
     return {
@@ -374,62 +330,77 @@ async def _create_plane_ticket(run_id: str, breach_msg: str) -> dict:
         "title": title,
         "url": f"{ui}/{ws}/projects/{proj}/issues/{resp.get('id')}",
         "priority": "urgent",
-        "simulated": False,
         "note": "Created via Plane REST API",
     }
 
 
-# Scenario → the pipeline stage the Grafana topology should mark failed when the
-# simulated failure/incident runs. The demo pushes a `demo_failure{stage=...}`
-# gauge (1 = failed) to the pushgateway; the topology query multiplies
-# pipeline_stage_health by (1 - demo_failure) to override that stage to 0/red.
-SCENARIO_FAILED_STAGE = {
-    "failure": "Iceberg",  # "Pipeline failure (Iceberg sink)"
-    "incident": "Gold",    # "DQ SLO breach → incident ticket"
-}
+# ─────────────────────────────────────────────────────────────────────────────
+# Scenario execution
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _hop_payload(hop: dict, status: str, message: str, metric: str | None,
+                 latency_ms: int) -> dict:
+    return {
+        "id": hop["id"], "node": hop["node"], "edge": hop["edge"],
+        "label": hop["label"], "status": status,
+        "latency_ms": latency_ms, "message": message, "metric": metric,
+    }
 
 
-def _push_demo_failure(stage: str | None) -> None:
-    """Push (or clear) demo_failure{stage=...} to the pushgateway (best-effort).
+def _real_downstream(hop_id: str) -> tuple[str, str, str | None]:
+    """Real state of a downstream hop → (status, message, metric)."""
+    if hop_id == "cdc":
+        s = _kafka_connect_connector_state("debezium-postgres")
+        if s["state"] == "RUNNING":
+            return "success", "Debezium connector RUNNING", None
+        return "failure", f"Debezium connector state={s['state']}: {s['error'] or 'not running'}", None
 
-    A non-None stage marks that stage failed in the Grafana topology; None
-    clears the failure (PUT an empty group so every stage reads healthy).
-    """
-    pg_url = os.environ.get("PUSHGATEWAY_URL", "http://pushgateway:9091")
-    body = "" if stage is None else f'demo_failure{{stage="{stage}"}} 1\n'
+    if hop_id == "kafka":
+        s = _kafka_connect_connector_state("iceberg-sink")
+        if s["state"] == "RUNNING":
+            return "success", "Iceberg sink connector RUNNING", None
+        return "failure", f"Iceberg sink connector state={s['state']}: {s['error'] or 'not running'}", None
 
-    def _put() -> None:
-        req = urllib.request.Request(
-            f"{pg_url}/metrics/job/demo-scenario",
-            data=body.encode(),
-            headers={"Content-Type": "text/plain; version=0.0.4"},
-            method="PUT",
-        )
-        with urllib.request.urlopen(req, timeout=5):
-            pass
+    if hop_id == "silver":
+        v = _prom_metric_value('dbt_run_success{layer="silver"}')
+        if v == 1:
+            return "success", "dbt Silver layer up (last run success)", None
+        return "failure", f"dbt Silver layer down (dbt_run_success={v})", None
 
+    if hop_id == "gold":
+        v = _prom_metric_value('dbt_run_success{layer="gold"}')
+        failures = _prom_metric_value("dbt_test_failures")
+        if v == 1 and failures == 0:
+            return "success", "dbt Gold layer up, 0 DQ failures", "0 failed"
+        if v == 1 and failures:
+            return "warning", f"dbt Gold layer up, {int(failures)} DQ test(s) failing", f"{int(failures)} failed"
+        return "failure", f"dbt Gold layer down (dbt_run_success={v})", None
+
+    if hop_id == "bi":
+        trino_ok = _reachable(_url("TRINO_URL"))
+        mb_ok = _reachable(_url("METABASE_URL"))
+        if trino_ok and mb_ok:
+            return "success", "Trino + Metabase reachable", None
+        return "failure", f"BI reachability: Trino={'up' if trino_ok else 'DOWN'}, Metabase={'up' if mb_ok else 'DOWN'}", None
+
+    return "success", "", None
+
+
+def _parse_int(value) -> int | None:
+    if value is None or value == "":
+        return None
     try:
-        _put()
-    except Exception:  # noqa: BLE001 — monitoring is best-effort
-        pass
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 async def generate(name: str, count: int | None = None, mode: str | None = None):
-    """Async generator yielding (event, payload) tuples for a scenario run.
-
-    Data-injection scenarios (healthy/dirty) replace the simulated source write
-    with a real call to the LMS ``/generate`` endpoint (POST, ``count`` + ``mode``
-    params). The ``npl-book`` scenario calls the real LMS ``/scenarios/loan-book``
-    endpoint (POST, ``count`` = loans per delinquency bucket). Every other hop —
-    and the failure/incident scenarios — are unchanged.
-    """
     scenario = SCENARIOS[name]
     run_id = str(uuid.uuid4())
     started = time.time()
 
     inject_mode = mode or DATA_MODES.get(name)
-    inject_count = max(0, count) if count is not None else DEFAULT_INJECT_COUNT
-
     systems = await _probe_systems()
     yield "start", {
         "scenario": name,
@@ -438,109 +409,164 @@ async def generate(name: str, count: int | None = None, mode: str | None = None)
         "systems": systems,
     }
 
-    # Reflect a simulated failure/incident in Grafana by pushing demo_failure.
-    await asyncio.to_thread(_push_demo_failure, SCENARIO_FAILED_STAGE.get(name))
-
     hop_results: list[dict] = []
-    failed = False
     injected = None
+    ticket = None
+    failed = False
+    dbt_result = None
 
     for hop in HOPS:
-        cfg = scenario["hops"].get(hop["id"], {"status": "skipped"})
-        final_status = cfg.get("status", "success")
+        hid = hop["id"]
+        t0 = time.time()
 
-        # Anything after a failure is skipped, not run.
-        if failed or final_status == "skipped":
-            payload = {
-                "id": hop["id"], "node": hop["node"], "edge": hop["edge"],
-                "label": hop["label"], "status": "skipped",
-                "latency_ms": 0, "message": "skipped (upstream failed)",
-                "metric": None, "simulated": True,
-            }
+        if failed:
+            payload = _hop_payload(
+                hop, "skipped", "skipped (upstream failed)", None, 0)
             hop_results.append(payload)
             yield "hop_done", payload
             continue
 
-        yield "hop_running", {
-            "id": hop["id"], "node": hop["node"], "edge": hop["edge"],
-            "label": hop["label"],
-        }
+        yield "hop_running", {"id": hid, "node": hop["node"], "edge": hop["edge"], "label": hop["label"]}
 
-        latency = cfg.get("latency", 100)
-        simulated = True
-        message = cfg.get("message", "")
-        metric = cfg.get("metric")
-
-        # Source hop of a data-injection scenario → real LMS /generate.
-        if hop["id"] == "lms" and name == NPL_BOOK_SCENARIO:
-            n_per_bucket = max(1, count) if count is not None else NPL_DEFAULT_PER_BUCKET
-            result = await _inject_loan_book(n_per_bucket)
-            if result["ok"] and result["created_loans"] is not None:
-                simulated = False
-                buckets = result["per_bucket"] or {}
-                injected = {
-                    "count": result["created_loans"],
-                    "mode": "loan-book",
-                    "real": True,
-                    "payments": result["payments"],
-                    "per_bucket": buckets,
-                }
-                metric = f"{result['created_loans']:,} loans"
-                message = (
-                    f"LMS /scenarios/loan-book: {result['created_loans']} loans, "
-                    f"{result['payments']} payments across {len(buckets)} buckets"
-                )
-            else:
-                # Surface the real error: no fabricated metrics, hop shows warning.
-                final_status = "warning"
-                metric = None
-                message = (
-                    f"LMS /scenarios/loan-book unreachable "
-                    f"({result.get('error')}) — nothing injected"
-                )
-        elif hop["id"] == "lms" and inject_mode is not None:
-            if inject_count > 0:
-                result = await _inject_lms(inject_count, inject_mode)
-                if result["ok"]:
-                    simulated = False
-                    injected = {"count": result["count"], "mode": inject_mode, "real": True}
-                    metric = f"{result['count']:,} rows"
-                    message = (
-                        f"LMS /generate: {result['count']:,} rows injected "
-                        f"(mode={inject_mode})"
-                    )
+        # ── Source write (real) ────────────────────────────────────────────
+        if hid == "lms":
+            if name == NPL_BOOK_SCENARIO:
+                n_per_bucket = max(1, count) if count is not None else NPL_DEFAULT_PER_BUCKET
+                res = await _inject_loan_book(n_per_bucket)
+                if res["ok"] and res["created_loans"] is not None:
+                    injected = {"count": res["created_loans"], "mode": "loan-book", "real": True}
+                    buckets = res["per_bucket"] or {}
+                    status, metric, msg = "success", f"{res['created_loans']:,} loans", (
+                        f"LMS /scenarios/loan-book: {res['created_loans']} loans, "
+                        f"{res['payments']} payments across {len(buckets)} buckets")
                 else:
-                    injected = {"count": inject_count, "mode": inject_mode, "real": False}
-                    message = (
-                        f"LMS /generate unreachable ({result['error']}) — "
-                        f"simulated source write"
-                    )
+                    injected = {"count": n_per_bucket, "mode": "loan-book", "real": False}
+                    status, metric, msg = "failure", None, f"LMS /scenarios/loan-book failed: {res.get('error')}"
             else:
-                injected = {"count": 0, "mode": inject_mode, "real": False}
-                metric = "0 rows"
-                message = "LMS /generate skipped (count=0)"
+                if inject_mode is None:
+                    n = {"failure": FAILURE_INJECT_COUNT, "incident": INCIDENT_DIRTY_COUNT}.get(name, DEFAULT_INJECT_COUNT)
+                    m = {"failure": "clean", "incident": "dirty"}.get(name, "clean")
+                else:
+                    n = max(0, count) if count is not None else DEFAULT_INJECT_COUNT
+                    m = inject_mode
 
-        await asyncio.sleep(_latency_ms(latency) / 1000.0)
+                if n == 0:
+                    injected = {"count": 0, "mode": m, "real": False}
+                    status, metric, msg = "success", "0 rows", "LMS /generate skipped (count=0)"
+                else:
+                    res = await _inject_lms(n, m)
+                    if res["ok"]:
+                        injected = {"count": res["count"], "mode": m, "real": True}
+                        status, metric, msg = "success", f"{res['count']:,} rows", (
+                            f"LMS /generate: {res['count']:,} rows injected (mode={m})")
+                    else:
+                        injected = {"count": n, "mode": m, "real": False}
+                        status, metric, msg = "failure", None, f"LMS /generate failed: {res['error']}"
 
-        payload = {
-            "id": hop["id"], "node": hop["node"], "edge": hop["edge"],
-            "label": hop["label"], "status": final_status,
-            "latency_ms": round(_latency_ms(latency)),
-            "message": message,
-            "metric": metric,
-            "simulated": simulated,
-        }
+            latency = int((time.time() - t0) * 1000)
+            payload = _hop_payload(hop, status, msg, metric, latency)
+            hop_results.append(payload)
+            yield "hop_done", payload
+            if status == "failure":
+                failed = True
+            continue
+
+        # ── failure: genuinely kill the Iceberg sink ────────────────────────
+        if name == "failure" and hid == "kafka":
+            stop = await asyncio.to_thread(_killswitch, "/iceberg-sink/stop", "POST")
+            latency = int((time.time() - t0) * 1000)
+            if not stop.get("ok"):
+                payload = _hop_payload(
+                    hop, "failure", f"kill-switch failed to stop Iceberg sink: {stop.get('error')}", None, latency)
+                hop_results.append(payload)
+                yield "hop_done", payload
+                failed = True
+                continue
+            status_res = await asyncio.to_thread(_killswitch, "/iceberg-sink/status", "GET")
+            running = bool(status_res.get("running") is True)
+            if not running:
+                msg = "Iceberg sink FAILED: MinIO object store stopped (docker stop lms-monitoring-minio-1)"
+                metric = "sink down"
+                payload = _hop_payload(hop, "failure", msg, metric, latency)
+                hop_results.append(payload)
+                yield "hop_done", payload
+                failed = True
+            else:
+                payload = _hop_payload(
+                    hop, "warning", "stop requested but MinIO still reports running", None, latency)
+                hop_results.append(payload)
+                yield "hop_done", payload
+            continue
+
+        # ── incident: run the real dbt DQ gate ───────────────────────────────
+        if name == "incident" and hid == "silver":
+            dbt_result = await asyncio.to_thread(_killswitch, "/dbt/run", "POST")
+            latency = int((time.time() - t0) * 1000)
+            if not dbt_result.get("ok"):
+                msg = f"dbt run failed to start: {dbt_result.get('error')}"
+                payload = _hop_payload(hop, "failure", msg, None, latency)
+                hop_results.append(payload)
+                yield "hop_done", payload
+                failed = True
+                continue
+            # `dbt test` exiting non-zero is the DQ breach, not a run failure —
+            # only a non-zero `run_rc` means the Silver transform itself failed.
+            if dbt_result.get("run_rc") not in (0, None):
+                tail = (dbt_result.get("stderr_tail") or "")[-300:]
+                msg = f"dbt run failed (run_rc={dbt_result.get('run_rc')}): {tail}"
+                payload = _hop_payload(hop, "failure", msg, None, latency)
+                hop_results.append(payload)
+                yield "hop_done", payload
+                failed = True
+                continue
+            msg = f"dbt Silver transform ran ({dbt_result.get('duration_ms')} ms)"
+            payload = _hop_payload(hop, "success", msg, None, latency)
+            hop_results.append(payload)
+            yield "hop_done", payload
+            continue
+
+        if name == "incident" and hid == "gold":
+            failures = dbt_result.get("dbt_test_failures") if dbt_result else None
+            quarantine = dbt_result.get("quarantine_rows_total") if dbt_result else None
+            latency = int((time.time() - t0) * 1000)
+            if failures is not None and failures > 0:
+                msg = (f"gold DQ SLO BREACHED: {failures} dbt test(s) failing "
+                       f"(quarantine rows: {quarantine if quarantine is not None else '?'})")
+                payload = _hop_payload(hop, "failure", msg, f"{failures} failed", latency)
+                hop_results.append(payload)
+                yield "hop_done", payload
+                failed = True
+            else:
+                payload = _hop_payload(hop, "success", f"gold DQ passed ({failures or 0} failures)", f"{failures or 0} failed", latency)
+                hop_results.append(payload)
+                yield "hop_done", payload
+            continue
+
+        # ── default: real downstream observation ────────────────────────────
+        status, message, metric = await asyncio.to_thread(_real_downstream, hid)
+        latency = int((time.time() - t0) * 1000)
+        payload = _hop_payload(hop, status, message, metric, latency)
         hop_results.append(payload)
         yield "hop_done", payload
-
-        if final_status == "failure":
+        if status == "failure":
             failed = True
 
-    ticket = None
-    if scenario["status"] == "incident":
-        breach = scenario["hops"]["gold"]["message"]
-        ticket = await _create_plane_ticket(run_id, breach)
-        yield "ticket", ticket
+    # Incident → open a REAL Plane ticket ONLY when the DQ actually breached
+    # (the dbt gate ran and reported failing tests). If the pipeline broke
+    # before the DQ gate, there is no breach, so no ticket — the hop statuses
+    # already surface the real failure.
+    if scenario["status"] == "incident" and dbt_result is not None:
+        failures = dbt_result.get("dbt_test_failures")
+        if failures is not None and failures > 0:
+            quarantine = dbt_result.get("quarantine_rows_total")
+            dirty_count = injected.get("count") if injected else INCIDENT_DIRTY_COUNT
+            breach = (
+                f"DQ SLO breach: {failures} dbt test(s) failing, "
+                f"quarantine rows {quarantine if quarantine is not None else '?'} "
+                f"after injecting {dirty_count:,} dirty rows"
+            )
+            ticket = await _create_plane_ticket(run_id, breach)
+            yield "ticket", ticket
 
     duration_ms = int((time.time() - started) * 1000)
     yield "done", {
@@ -607,7 +633,6 @@ async def run_scenario(name: str, request: Request):
             },
         )
 
-    # JSON: collect final per-hop results + summary.
     result = {
         "scenario": name, "id": None, "status": None, "hops": [],
         "ticket": None, "systems": {}, "injected": None,
