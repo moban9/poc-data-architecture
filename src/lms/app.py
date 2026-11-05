@@ -665,7 +665,7 @@ def generate(
 
     ensure_borrowers(db)
 
-    _log = logging.getLogger("lms.generate")
+    _log = logging.getLogger("uvicorn.error")  # uvicorn's logger has handlers attached
     if os.getenv("LMS_TIMING"):
         _log.setLevel(logging.INFO)
     _t_start = time.perf_counter()
