@@ -65,7 +65,6 @@ repeatedly. (≥180 days past due is still `90+` — there is no charge-off tier
 | `null_loan_id` | `loan_event.loan_id` is NULL | `not_null` + `relationships` |
 | `negative_amount` | `loan.amount` <= 0 | `positive_value` |
 | `invalid_date` | `loan.origination_date` = "not-a-date" | `valid_date` |
-| `unsupported_currency` | `loan.currency` = "XYZ" | `accepted_values` |
 | `orphan_borrower_id` | `loan.borrower_id` = "B-9999" | `relationships` |
 
 The source schema deliberately has **no FK/check constraints** so these defects

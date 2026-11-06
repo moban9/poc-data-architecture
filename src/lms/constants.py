@@ -5,8 +5,9 @@ The dirty modes and seed borrowers are coupled to the Silver dbt DQ rules in
 the current demo wiring). Keep them in sync with that project.
 """
 
-# ISO-4217 currencies accepted by the Silver `accepted_values` rule on loan.currency.
-VALID_CURRENCIES = ["USD", "EUR", "GBP", "JPY", "CAD", "AUD"]
+# Single-currency POC: IDR only. The Silver `accepted_values` rule on
+# loan.currency must accept exactly this set (one value).
+VALID_CURRENCIES = ["IDR"]
 
 # Borrowers that MUST exist so the Silver relationships rule
 # (loan.borrower_id -> dim_borrower.id) passes for clean rows. These mirror
@@ -22,12 +23,14 @@ SEED_BORROWERS = [
 # dim_borrower: referencing it trips the relationships test (orphan borrower).
 ORPHAN_BORROWER_ID = "B-9999"
 
-# The five dirty modes, one per Silver DQ rule they trip.
+# The four dirty modes, one per Silver DQ rule they trip. There is no currency
+# dirty mode: the source only ever emits IDR (single-currency POC), so a
+# "bad currency" defect would be a foreign/non-IDR value and is deliberately
+# dropped rather than reintroducing a foreign currency.
 DIRTY_MODES = [
     "null_loan_id",          # loan_event.loan_id is NULL        -> not_null + relationships
     "negative_amount",       # loan.amount <= 0                  -> positive_value
     "invalid_date",          # loan.origination_date != YYYY-MM-DD -> valid_date
-    "unsupported_currency",  # loan.currency not in VALID_CURRENCIES -> accepted_values
     "orphan_borrower_id",    # loan.borrower_id not in borrower  -> relationships
 ]
 

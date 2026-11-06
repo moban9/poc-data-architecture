@@ -20,7 +20,7 @@ Endpoints
 Modes for /generate
 -------------------
   clean  — every row is fully valid
-  dirty  — every row trips one dbt test (the 5 dirty modes, cycled)
+  dirty  — every row trips one dbt test (the 4 dirty modes, cycled)
   mixed  — ~10% dirty (per-request random), the rest clean
 """
 from __future__ import annotations
@@ -279,8 +279,6 @@ def _make_loan_unit(loan_id: str, dirty_mode: Optional[str] = None):
         amount = -round(random.uniform(100.0, 50_000.0), 2)
     elif dirty_mode == "invalid_date":
         origination_date = "not-a-date"
-    elif dirty_mode == "unsupported_currency":
-        currency = "XYZ"
     elif dirty_mode == "orphan_borrower_id":
         borrower_id = constants.ORPHAN_BORROWER_ID
 
@@ -362,8 +360,6 @@ def _make_loan_unit_rows(loan_id: str, dirty_mode: Optional[str] = None):
         amount = -round(random.uniform(100.0, 50_000.0), 2)
     elif dirty_mode == "invalid_date":
         origination_date = "not-a-date"
-    elif dirty_mode == "unsupported_currency":
-        currency = "XYZ"
     elif dirty_mode == "orphan_borrower_id":
         borrower_id = constants.ORPHAN_BORROWER_ID
 

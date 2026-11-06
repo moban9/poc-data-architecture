@@ -3,7 +3,8 @@ repayment_schedule.
 
 Deliberately NO foreign-key or check constraints: the source system is allowed
 to emit exactly the defects the Silver dbt tests are meant to catch — orphan
-borrower_id, NULL loan_id, negative amounts, invalid dates/currencies.
+borrower_id, NULL loan_id, negative amounts, invalid dates. (The source emits a
+single currency, IDR, so there is no currency defect.)
 Referential integrity and data quality are enforced downstream by dbt, not by
 the source. Column types mirror ``dbt/seeds/properties.yml`` (e.g. the
 ``origination_date`` is VARCHAR so an invalid value like "not-a-date" can be
