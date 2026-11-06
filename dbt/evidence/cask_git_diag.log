@@ -1,0 +1,43 @@
+=== cask_git_diag 2026-11-05T05:18:34Z ===
+--- git repo? ---
+true
+--- git status --short ---
+ M dbt/README.md
+ M dbt/models/gold/loan_delinquency.sql
+ M dbt/models/schema.yml
+ M dbt/models/silver/loan.sql
+ M dbt/models/silver/stg_loan.sql
+ M dbt/models/sources.yml
+?? dbt/evidence/cask_env_diag.log
+?? dbt/evidence/cask_git_diag.log
+?? dbt/models/silver/repayment_schedule.sql
+?? dbt/models/silver/stg_repayment_schedule.sql
+--- git log --oneline -5 ---
+ed4e4f9 feat(lms): real repayment schedule (term + due_date) for NPL — drop 365-day assumption
+ac6c188 fix(gold): real NPL delinquency — 90+ bucket + outstanding-based npl_rate
+92b40c8 ci(tf-ops): authenticated ops shell for gcloud/terraform on a runner
+956fd98 fix(pipeline): numeric amount (decimal.handling.mode=double), borrower re-snapshot, occurred_at iso cast — dbt 14/14 green
+d2c593b fix(dagster): force psycopg2 via scheme field (psycopg3 breaks NOTIFY binding)
+--- git diff --stat (unstaged) ---
+ dbt/README.md                        | 22 ++++++-----
+ dbt/models/gold/loan_delinquency.sql | 52 ++++++++++++-------------
+ dbt/models/schema.yml                | 74 ++++++++++++++++++++++++++++++++++--
+ dbt/models/silver/loan.sql           |  7 +++-
+ dbt/models/silver/stg_loan.sql       | 16 ++++++--
+ dbt/models/sources.yml               | 10 ++++-
+ 6 files changed, 137 insertions(+), 44 deletions(-)
+--- changed model files present? ---
+present: dbt/models/sources.yml (29 lines)
+present: dbt/models/silver/stg_loan.sql (24 lines)
+present: dbt/models/silver/loan.sql (44 lines)
+present: dbt/models/silver/stg_repayment_schedule.sql (18 lines)
+present: dbt/models/silver/repayment_schedule.sql (37 lines)
+present: dbt/models/gold/loan_delinquency.sql (97 lines)
+present: dbt/models/schema.yml (222 lines)
+--- pip / python in cron env? ---
+Python 3.14.9
+/opt/data/installs/351f81cc06284494/environments/a063469458cb452a81155be546988223/venv/bin/python3: No module named pip
+--- docker compose version ---
+docker: 'compose' is not a docker command.
+See 'docker --help'
+=== git diag complete ===

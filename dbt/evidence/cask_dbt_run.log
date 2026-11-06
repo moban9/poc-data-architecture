@@ -1,0 +1,283 @@
+=== dbt run 2026-11-05T18:17:03Z ===
+--- sanity: dbt model files present? ---
+/home/ubuntu/poc/dbt/macros/latest_cdc_row.sql
+/home/ubuntu/poc/dbt/models/silver/stg_repayment_schedule.sql
+--- running: docker compose run --rm dbt (this may take a few minutes) ---
+time="2026-11-05T18:17:03Z" level=warning msg="Found orphan containers (lms-monitoring-trino-metabase-gw-1) for this project. If you removed or renamed this service in your compose file, you can run this command with the --remove-orphans flag to clean it up."
+ Container lms-monitoring-minio-1 Running 
+ Container lms-monitoring-polaris-postgres-1 Running 
+ Container lms-monitoring-polaris-1 Running 
+ Container lms-monitoring-trino-1 Running 
+ Container lms-monitoring-polaris-setup-1 Starting 
+ Container lms-monitoring-polaris-setup-1 Started 
+ Container lms-monitoring-polaris-setup-1 Waiting 
+ Container lms-monitoring-polaris-setup-1 Exited 
+ Container lms-monitoring-trino-1 Waiting 
+ Container lms-monitoring-trino-1 Healthy 
+ Container lms-monitoring-dbt-run-01fdfe7d1bbf Creating 
+ Container lms-monitoring-dbt-run-01fdfe7d1bbf Created 
+=== dbt seed (first run only) ===
+seed tables already present (dirty_data rows=5) — skipping dbt seed
+=== dbt run (silver + gold) ===
+[0m18:18:05  Running with dbt=1.12.6
+INFO:trino.auth:keyring module not found. OAuth2 token will not be stored in keyring.
+INFO:trino.auth:keyring module not found. OAuth2 token will not be stored in keyring.
+[0m18:18:06  Registered adapter: trino=1.11.0
+[0m18:18:06  Found 16 models, 2 seeds, 1 operation, 68 data tests, 4 sources, 518 macros
+[0m18:18:06  
+[0m18:18:06  Concurrency: 4 threads (target='dev')
+[0m18:18:06  
+[0m18:18:07  [[33mWARNING[0m]: SSL certificate validation is disabled by default. It is legacy behavior which will be changed in future releases. It is strongly advised to enable `require_certificate_validation` flag or explicitly set `cert` configuration to `True` for security reasons. You may receive an error after that if your SSL setup is incorrect.
+You may opt into the new behavior sooner by setting `flags.require_certificate_validation` to `True` in `dbt_project.yml`.
+Visit https://docs.getdbt.com/reference/global-configs/behavior-changes for more information.
+[0m18:18:07  [[33mWARNING[0m]: SSL certificate validation is disabled by default. It is legacy behavior which will be changed in future releases. It is strongly advised to enable `require_certificate_validation` flag or explicitly set `cert` configuration to `True` for security reasons. You may receive an error after that if your SSL setup is incorrect.
+You may opt into the new behavior sooner by setting `flags.require_certificate_validation` to `True` in `dbt_project.yml`.
+Visit https://docs.getdbt.com/reference/global-configs/behavior-changes for more information.
+[0m18:18:07  [[33mWARNING[0m]: SSL certificate validation is disabled by default. It is legacy behavior which will be changed in future releases. It is strongly advised to enable `require_certificate_validation` flag or explicitly set `cert` configuration to `True` for security reasons. You may receive an error after that if your SSL setup is incorrect.
+You may opt into the new behavior sooner by setting `flags.require_certificate_validation` to `True` in `dbt_project.yml`.
+Visit https://docs.getdbt.com/reference/global-configs/behavior-changes for more information.
+[0m18:18:07  1 of 16 START sql table model silver.dim_borrower .............................. [RUN]
+[0m18:18:07  2 of 16 START sql table model quarantine_lms.quarantine_lms .................... [RUN]
+[0m18:18:07  3 of 16 START sql table model silver.stg_loan .................................. [RUN]
+[0m18:18:07  4 of 16 START sql table model silver.stg_repayment_schedule .................... [RUN]
+[0m18:18:21  2 of 16 OK created sql table model quarantine_lms.quarantine_lms ............... [[32mCREATE TABLE (0 rows)[0m in 13.89s]
+[0m18:18:29  1 of 16 OK created sql table model silver.dim_borrower ......................... [[32mCREATE TABLE (4 rows)[0m in 22.16s]
+[0m18:18:33  3 of 16 OK created sql table model silver.stg_loan ............................. [[32mCREATE TABLE (354_360 rows)[0m in 26.36s]
+[0m18:18:33  5 of 16 START sql table model silver.quarantine_loan_amount_positive ........... [RUN]
+[0m18:18:33  6 of 16 START sql table model silver.quarantine_loan_borrower_relationship ..... [RUN]
+[0m18:18:33  7 of 16 START sql table model silver.quarantine_loan_currency_accepted ......... [RUN]
+[0m18:19:11  6 of 16 OK created sql table model silver.quarantine_loan_borrower_relationship  [[32mCREATE TABLE (4_190 rows)[0m in 37.47s]
+[0m18:19:11  8 of 16 START sql table model silver.quarantine_loan_id_not_null ............... [RUN]
+[0m18:19:24  5 of 16 OK created sql table model silver.quarantine_loan_amount_positive ...... [[32mCREATE TABLE (4_196 rows)[0m in 50.67s]
+[0m18:19:24  9 of 16 START sql table model silver.quarantine_loan_origination_date_valid .... [RUN]
+[0m18:19:26  8 of 16 OK created sql table model silver.quarantine_loan_id_not_null .......... [[32mCREATE TABLE (0 rows)[0m in 14.74s]
+[0m18:19:27  4 of 16 OK created sql table model silver.stg_repayment_schedule ............... [[32mCREATE TABLE (6_908_334 rows)[0m in 79.74s]
+[0m18:19:30  7 of 16 OK created sql table model silver.quarantine_loan_currency_accepted .... [[32mCREATE TABLE (4_191 rows)[0m in 56.65s]
+[0m18:19:37  9 of 16 OK created sql table model silver.quarantine_loan_origination_date_valid  [[32mCREATE TABLE (4_193 rows)[0m in 13.20s]
+[0m18:19:37  10 of 16 START sql table model silver.loan ..................................... [RUN]
+[0m18:19:43  10 of 16 OK created sql table model silver.loan ................................ [[32mCREATE TABLE (337_590 rows)[0m in 5.92s]
+[0m18:19:43  11 of 16 START sql table model silver.loan_event ............................... [RUN]
+[0m18:19:43  12 of 16 START sql table model silver.repayment_schedule ....................... [RUN]
+[0m18:20:09  11 of 16 OK created sql table model silver.loan_event .......................... [[32mCREATE TABLE (705_335 rows)[0m in 26.20s]
+[0m18:20:09  13 of 16 START sql table model gold.loan_event_daily ........................... [RUN]
+[0m18:20:09  14 of 16 START sql table model gold.loan_portfolio_summary ..................... [RUN]
+[0m18:20:26  12 of 16 OK created sql table model silver.repayment_schedule .................. [[32mCREATE TABLE (6_580_511 rows)[0m in 42.48s]
+[0m18:20:26  15 of 16 START sql table model gold.loan_delinquency ........................... [RUN]
+[0m18:20:26  16 of 16 START sql incremental model gold.loan_delinquency_snapshot ............ [RUN]
+[0m18:20:26  13 of 16 OK created sql table model gold.loan_event_daily ...................... [[32mCREATE TABLE (529 rows)[0m in 16.76s]
+[0m18:20:28  14 of 16 OK created sql table model gold.loan_portfolio_summary ................ [[32mCREATE TABLE (72 rows)[0m in 18.41s]
+[0m18:21:00  16 of 16 OK created sql incremental model gold.loan_delinquency_snapshot ....... [[32mINSERT (0 rows)[0m in 34.57s]
+[0m18:21:05  15 of 16 OK created sql table model gold.loan_delinquency ...................... [[32mCREATE TABLE (3 rows)[0m in 39.48s]
+[0m18:21:05  
+[0m18:21:05  1 of 1 START hook: lms_poc.on-run-end.0 ........................................ [RUN]
+[0m18:21:05  1 of 1 OK hook: lms_poc.on-run-end.0 ........................................... [[32mOK[0m in 0.01s]
+[0m18:21:05  
+[0m18:21:05  Finished running 1 incremental model, 1 project hook, 15 table models in 0 hours 2 minutes and 58.73 seconds (178.73s).
+[0m18:21:05  
+[0m18:21:05  [32mCompleted successfully[0m
+[0m18:21:05  
+[0m18:21:05  Done. PASS=17 WARN=0 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=17
+=== dbt test (failures are expected on dirty source data) ===
+[0m18:21:09  Running with dbt=1.12.6
+INFO:trino.auth:keyring module not found. OAuth2 token will not be stored in keyring.
+INFO:trino.auth:keyring module not found. OAuth2 token will not be stored in keyring.
+[0m18:21:10  Registered adapter: trino=1.11.0
+[0m18:21:10  Found 16 models, 2 seeds, 1 operation, 68 data tests, 4 sources, 518 macros
+[0m18:21:10  
+[0m18:21:10  Concurrency: 4 threads (target='dev')
+[0m18:21:10  
+[0m18:21:10  [[33mWARNING[0m]: SSL certificate validation is disabled by default. It is legacy behavior which will be changed in future releases. It is strongly advised to enable `require_certificate_validation` flag or explicitly set `cert` configuration to `True` for security reasons. You may receive an error after that if your SSL setup is incorrect.
+You may opt into the new behavior sooner by setting `flags.require_certificate_validation` to `True` in `dbt_project.yml`.
+Visit https://docs.getdbt.com/reference/global-configs/behavior-changes for more information.
+[0m18:21:10  [[33mWARNING[0m]: SSL certificate validation is disabled by default. It is legacy behavior which will be changed in future releases. It is strongly advised to enable `require_certificate_validation` flag or explicitly set `cert` configuration to `True` for security reasons. You may receive an error after that if your SSL setup is incorrect.
+You may opt into the new behavior sooner by setting `flags.require_certificate_validation` to `True` in `dbt_project.yml`.
+Visit https://docs.getdbt.com/reference/global-configs/behavior-changes for more information.
+[0m18:21:10  [[33mWARNING[0m]: SSL certificate validation is disabled by default. It is legacy behavior which will be changed in future releases. It is strongly advised to enable `require_certificate_validation` flag or explicitly set `cert` configuration to `True` for security reasons. You may receive an error after that if your SSL setup is incorrect.
+You may opt into the new behavior sooner by setting `flags.require_certificate_validation` to `True` in `dbt_project.yml`.
+Visit https://docs.getdbt.com/reference/global-configs/behavior-changes for more information.
+[0m18:21:10  [[33mWARNING[0m]: SSL certificate validation is disabled by default. It is legacy behavior which will be changed in future releases. It is strongly advised to enable `require_certificate_validation` flag or explicitly set `cert` configuration to `True` for security reasons. You may receive an error after that if your SSL setup is incorrect.
+You may opt into the new behavior sooner by setting `flags.require_certificate_validation` to `True` in `dbt_project.yml`.
+Visit https://docs.getdbt.com/reference/global-configs/behavior-changes for more information.
+[0m18:21:11  1 of 68 START test accepted_values_dirty_data_currency__True__USD__EUR__GBP__JPY__CAD__AUD  [RUN]
+[0m18:21:11  2 of 68 START test accepted_values_loan_currency__True__USD__EUR__GBP__JPY__CAD__AUD  [RUN]
+[0m18:21:11  3 of 68 START test accepted_values_loan_delinquency_delinquency_bucket__True__current__30_59__60_89__90_  [RUN]
+[0m18:21:11  4 of 68 START test accepted_values_loan_delinquency_snapshot_delinquency_bucket__True__current__30_59__60_89__90_  [RUN]
+[0m18:21:11  4 of 68 PASS accepted_values_loan_delinquency_snapshot_delinquency_bucket__True__current__30_59__60_89__90_  [[32mPASS[0m in 0.78s]
+[0m18:21:11  5 of 68 START test accepted_values_loan_event_daily_currency__True__USD__EUR__GBP__JPY__CAD__AUD  [RUN]
+[0m18:21:12  1 of 68 FAIL 1 accepted_values_dirty_data_currency__True__USD__EUR__GBP__JPY__CAD__AUD  [[31mFAIL 1[0m in 0.98s]
+[0m18:21:12  6 of 68 START test accepted_values_loan_portfolio_summary_currency__True__USD__EUR__GBP__JPY__CAD__AUD  [RUN]
+[0m18:21:13  2 of 68 PASS accepted_values_loan_currency__True__USD__EUR__GBP__JPY__CAD__AUD . [[32mPASS[0m in 1.99s]
+[0m18:21:13  7 of 68 START test accepted_values_repayment_schedule_currency__True__USD__EUR__GBP__JPY__CAD__AUD  [RUN]
+[0m18:21:17  5 of 68 PASS accepted_values_loan_event_daily_currency__True__USD__EUR__GBP__JPY__CAD__AUD  [[32mPASS[0m in 5.16s]
+[0m18:21:17  3 of 68 PASS accepted_values_loan_delinquency_delinquency_bucket__True__current__30_59__60_89__90_  [[32mPASS[0m in 5.96s]
+[0m18:21:17  8 of 68 START test accepted_values_repayment_schedule_status__True__scheduled__paid__overdue  [RUN]
+[0m18:21:17  6 of 68 PASS accepted_values_loan_portfolio_summary_currency__True__USD__EUR__GBP__JPY__CAD__AUD  [[32mPASS[0m in 4.98s]
+[0m18:21:17  9 of 68 START test not_null_borrowers_full_name ................................ [RUN]
+[0m18:21:17  10 of 68 START test not_null_borrowers_id ...................................... [RUN]
+[0m18:21:20  10 of 68 PASS not_null_borrowers_id ............................................ [[32mPASS[0m in 3.45s]
+[0m18:21:20  11 of 68 START test not_null_dim_borrower_id ................................... [RUN]
+[0m18:21:20  9 of 68 PASS not_null_borrowers_full_name ...................................... [[32mPASS[0m in 3.47s]
+[0m18:21:20  7 of 68 PASS accepted_values_repayment_schedule_currency__True__USD__EUR__GBP__JPY__CAD__AUD  [[32mPASS[0m in 7.57s]
+[0m18:21:20  12 of 68 START test not_null_dirty_data_id ..................................... [RUN]
+[0m18:21:20  13 of 68 START test not_null_loan_borrower_id .................................. [RUN]
+[0m18:21:22  8 of 68 PASS accepted_values_repayment_schedule_status__True__scheduled__paid__overdue  [[32mPASS[0m in 4.99s]
+[0m18:21:22  14 of 68 START test not_null_loan_currency ..................................... [RUN]
+[0m18:21:28  14 of 68 PASS not_null_loan_currency ........................................... [[32mPASS[0m in 6.42s]
+[0m18:21:28  15 of 68 START test not_null_loan_delinquency_delinquency_bucket ............... [RUN]
+[0m18:21:28  12 of 68 FAIL 1 not_null_dirty_data_id ......................................... [[31mFAIL 1[0m in 8.00s]
+[0m18:21:28  13 of 68 PASS not_null_loan_borrower_id ........................................ [[32mPASS[0m in 8.00s]
+[0m18:21:28  11 of 68 PASS not_null_dim_borrower_id ......................................... [[32mPASS[0m in 8.02s]
+[0m18:21:28  16 of 68 START test not_null_loan_delinquency_loan_count ....................... [RUN]
+[0m18:21:28  17 of 68 START test not_null_loan_delinquency_npl_rate ......................... [RUN]
+[0m18:21:28  18 of 68 START test not_null_loan_delinquency_outstanding_balance .............. [RUN]
+[0m18:21:30  15 of 68 PASS not_null_loan_delinquency_delinquency_bucket ..................... [[32mPASS[0m in 2.10s]
+[0m18:21:30  19 of 68 START test not_null_loan_delinquency_snapshot_as_of_date .............. [RUN]
+[0m18:21:30  18 of 68 PASS not_null_loan_delinquency_outstanding_balance .................... [[32mPASS[0m in 2.07s]
+[0m18:21:30  20 of 68 START test not_null_loan_delinquency_snapshot_delinquency_bucket ...... [RUN]
+[0m18:21:30  16 of 68 PASS not_null_loan_delinquency_loan_count ............................. [[32mPASS[0m in 2.08s]
+[0m18:21:30  17 of 68 PASS not_null_loan_delinquency_npl_rate ............................... [[32mPASS[0m in 2.08s]
+[0m18:21:30  21 of 68 START test not_null_loan_delinquency_snapshot_loan_count .............. [RUN]
+[0m18:21:30  22 of 68 START test not_null_loan_delinquency_snapshot_npl_rate ................ [RUN]
+[0m18:21:31  19 of 68 PASS not_null_loan_delinquency_snapshot_as_of_date .................... [[32mPASS[0m in 0.90s]
+[0m18:21:31  23 of 68 START test not_null_loan_delinquency_snapshot_outstanding_balance ..... [RUN]
+[0m18:21:32  20 of 68 PASS not_null_loan_delinquency_snapshot_delinquency_bucket ............ [[32mPASS[0m in 1.69s]
+[0m18:21:32  24 of 68 START test not_null_loan_disbursement_date ............................ [RUN]
+[0m18:21:33  22 of 68 PASS not_null_loan_delinquency_snapshot_npl_rate ...................... [[32mPASS[0m in 2.49s]
+[0m18:21:33  21 of 68 PASS not_null_loan_delinquency_snapshot_loan_count .................... [[32mPASS[0m in 2.49s]
+[0m18:21:33  25 of 68 START test not_null_loan_event_daily_currency ......................... [RUN]
+[0m18:21:33  26 of 68 START test not_null_loan_event_daily_event_date ....................... [RUN]
+[0m18:21:33  23 of 68 PASS not_null_loan_delinquency_snapshot_outstanding_balance ........... [[32mPASS[0m in 1.88s]
+[0m18:21:33  27 of 68 START test not_null_loan_event_event_type ............................. [RUN]
+[0m18:21:34  24 of 68 PASS not_null_loan_disbursement_date .................................. [[32mPASS[0m in 2.39s]
+[0m18:21:34  28 of 68 START test not_null_loan_event_id ..................................... [RUN]
+[0m18:21:35  26 of 68 PASS not_null_loan_event_daily_event_date ............................. [[32mPASS[0m in 2.00s]
+[0m18:21:35  25 of 68 PASS not_null_loan_event_daily_currency ............................... [[32mPASS[0m in 2.00s]
+[0m18:21:35  29 of 68 START test not_null_loan_event_loan_id ................................ [RUN]
+[0m18:21:35  30 of 68 START test not_null_loan_event_occurred_at ............................ [RUN]
+[0m18:21:35  27 of 68 PASS not_null_loan_event_event_type ................................... [[32mPASS[0m in 2.00s]
+[0m18:21:35  31 of 68 START test not_null_loan_id ........................................... [RUN]
+[0m18:21:36  28 of 68 PASS not_null_loan_event_id ........................................... [[32mPASS[0m in 1.40s]
+[0m18:21:36  32 of 68 START test not_null_loan_interest_rate ................................ [RUN]
+[0m18:21:36  29 of 68 PASS not_null_loan_event_loan_id ...................................... [[32mPASS[0m in 0.99s]
+[0m18:21:36  31 of 68 PASS not_null_loan_id ................................................. [[32mPASS[0m in 0.90s]
+[0m18:21:36  30 of 68 PASS not_null_loan_event_occurred_at .................................. [[32mPASS[0m in 0.99s]
+[0m18:21:36  33 of 68 START test not_null_loan_maturity_date ................................ [RUN]
+[0m18:21:36  34 of 68 START test not_null_loan_monthly_installment .......................... [RUN]
+[0m18:21:36  35 of 68 START test not_null_loan_origination_date ............................. [RUN]
+[0m18:21:37  32 of 68 PASS not_null_loan_interest_rate ...................................... [[32mPASS[0m in 0.79s]
+[0m18:21:37  36 of 68 START test not_null_loan_portfolio_summary_currency ................... [RUN]
+[0m18:21:37  34 of 68 PASS not_null_loan_monthly_installment ................................ [[32mPASS[0m in 0.96s]
+[0m18:21:37  37 of 68 START test not_null_loan_portfolio_summary_loan_status ................ [RUN]
+[0m18:21:37  35 of 68 PASS not_null_loan_origination_date ................................... [[32mPASS[0m in 1.16s]
+[0m18:21:37  38 of 68 START test not_null_loan_portfolio_summary_loan_type .................. [RUN]
+[0m18:21:37  33 of 68 PASS not_null_loan_maturity_date ...................................... [[32mPASS[0m in 1.28s]
+[0m18:21:37  39 of 68 START test not_null_loan_term_months .................................. [RUN]
+[0m18:21:37  36 of 68 PASS not_null_loan_portfolio_summary_currency ......................... [[32mPASS[0m in 0.69s]
+[0m18:21:37  40 of 68 START test not_null_repayment_schedule_currency ....................... [RUN]
+[0m18:21:38  38 of 68 PASS not_null_loan_portfolio_summary_loan_type ........................ [[32mPASS[0m in 0.52s]
+[0m18:21:38  41 of 68 START test not_null_repayment_schedule_due_date ....................... [RUN]
+[0m18:21:38  37 of 68 PASS not_null_loan_portfolio_summary_loan_status ...................... [[32mPASS[0m in 0.92s]
+[0m18:21:38  42 of 68 START test not_null_repayment_schedule_id ............................. [RUN]
+[0m18:21:38  39 of 68 PASS not_null_loan_term_months ........................................ [[32mPASS[0m in 0.79s]
+[0m18:21:38  43 of 68 START test not_null_repayment_schedule_installment_no ................. [RUN]
+[0m18:21:38  40 of 68 PASS not_null_repayment_schedule_currency ............................. [[32mPASS[0m in 1.10s]
+[0m18:21:38  44 of 68 START test not_null_repayment_schedule_interest_due ................... [RUN]
+[0m18:21:39  41 of 68 PASS not_null_repayment_schedule_due_date ............................. [[32mPASS[0m in 1.18s]
+[0m18:21:39  45 of 68 START test not_null_repayment_schedule_loan_id ........................ [RUN]
+[0m18:21:39  43 of 68 PASS not_null_repayment_schedule_installment_no ....................... [[32mPASS[0m in 1.13s]
+[0m18:21:39  46 of 68 START test not_null_repayment_schedule_principal_due .................. [RUN]
+[0m18:21:39  44 of 68 PASS not_null_repayment_schedule_interest_due ......................... [[32mPASS[0m in 0.90s]
+[0m18:21:39  47 of 68 START test not_null_repayment_schedule_status ......................... [RUN]
+[0m18:21:40  42 of 68 PASS not_null_repayment_schedule_id ................................... [[32mPASS[0m in 1.79s]
+[0m18:21:40  48 of 68 START test positive_value_dirty_data_amount ........................... [RUN]
+[0m18:21:40  46 of 68 PASS not_null_repayment_schedule_principal_due ........................ [[32mPASS[0m in 0.67s]
+[0m18:21:40  49 of 68 START test positive_value_loan_amount ................................. [RUN]
+[0m18:21:40  47 of 68 PASS not_null_repayment_schedule_status ............................... [[32mPASS[0m in 0.82s]
+[0m18:21:40  50 of 68 START test positive_value_loan_monthly_installment .................... [RUN]
+[0m18:21:40  45 of 68 PASS not_null_repayment_schedule_loan_id .............................. [[32mPASS[0m in 1.59s]
+[0m18:21:40  51 of 68 START test positive_value_loan_term_months ............................ [RUN]
+[0m18:21:41  48 of 68 FAIL 1 positive_value_dirty_data_amount ............................... [[31mFAIL 1[0m in 0.99s]
+[0m18:21:41  52 of 68 START test relationships_dirty_data_borrower_id__id__ref_dim_borrower_  [RUN]
+[0m18:21:41  50 of 68 PASS positive_value_loan_monthly_installment .......................... [[32mPASS[0m in 1.36s]
+[0m18:21:41  53 of 68 START test relationships_loan_borrower_id__id__ref_dim_borrower_ ...... [RUN]
+[0m18:21:42  51 of 68 PASS positive_value_loan_term_months .................................. [[32mPASS[0m in 1.42s]
+[0m18:21:42  54 of 68 START test relationships_loan_event_loan_id__id__ref_loan_ ............ [RUN]
+[0m18:21:42  49 of 68 PASS positive_value_loan_amount ....................................... [[32mPASS[0m in 2.29s]
+[0m18:21:42  55 of 68 START test relationships_repayment_schedule_loan_id__id__ref_loan_ .... [RUN]
+[0m18:21:45  52 of 68 FAIL 1 relationships_dirty_data_borrower_id__id__ref_dim_borrower_ .... [[31mFAIL 1[0m in 4.29s]
+[0m18:21:45  56 of 68 START test unique_borrowers_id ........................................ [RUN]
+[0m18:21:47  53 of 68 PASS relationships_loan_borrower_id__id__ref_dim_borrower_ ............ [[32mPASS[0m in 5.06s]
+[0m18:21:47  57 of 68 START test unique_combination_loan_event_daily_event_date__currency ... [RUN]
+[0m18:21:47  56 of 68 PASS unique_borrowers_id .............................................. [[32mPASS[0m in 2.20s]
+[0m18:21:47  58 of 68 START test unique_dim_borrower_id ..................................... [RUN]
+[0m18:21:47  54 of 68 PASS relationships_loan_event_loan_id__id__ref_loan_ .................. [[32mPASS[0m in 5.40s]
+[0m18:21:47  59 of 68 START test unique_dirty_data_id ....................................... [RUN]
+[0m18:21:47  57 of 68 PASS unique_combination_loan_event_daily_event_date__currency ......... [[32mPASS[0m in 0.89s]
+[0m18:21:47  60 of 68 START test unique_loan_delinquency_delinquency_bucket ................. [RUN]
+[0m18:21:48  58 of 68 PASS unique_dim_borrower_id ........................................... [[32mPASS[0m in 0.99s]
+[0m18:21:48  61 of 68 START test unique_loan_event_id ....................................... [RUN]
+[0m18:21:48  59 of 68 PASS unique_dirty_data_id ............................................. [[32mPASS[0m in 0.91s]
+[0m18:21:48  62 of 68 START test unique_loan_id ............................................. [RUN]
+[0m18:21:49  55 of 68 PASS relationships_repayment_schedule_loan_id__id__ref_loan_ .......... [[32mPASS[0m in 6.79s]
+[0m18:21:49  63 of 68 START test unique_repayment_schedule_id ............................... [RUN]
+[0m18:21:49  60 of 68 PASS unique_loan_delinquency_delinquency_bucket ....................... [[32mPASS[0m in 1.46s]
+[0m18:21:49  64 of 68 START test valid_date_dirty_data_origination_date ..................... [RUN]
+[0m18:21:49  62 of 68 PASS unique_loan_id ................................................... [[32mPASS[0m in 1.09s]
+[0m18:21:49  65 of 68 START test valid_date_loan_disbursement_date .......................... [RUN]
+[0m18:21:52  65 of 68 PASS valid_date_loan_disbursement_date ................................ [[32mPASS[0m in 2.99s]
+[0m18:21:52  64 of 68 FAIL 1 valid_date_dirty_data_origination_date ......................... [[31mFAIL 1[0m in 3.21s]
+[0m18:21:52  66 of 68 START test valid_date_loan_maturity_date .............................. [RUN]
+[0m18:21:52  67 of 68 START test valid_date_loan_origination_date ........................... [RUN]
+[0m18:21:53  61 of 68 PASS unique_loan_event_id ............................................. [[32mPASS[0m in 5.01s]
+[0m18:21:53  68 of 68 START test valid_date_repayment_schedule_due_date ..................... [RUN]
+[0m18:21:54  66 of 68 PASS valid_date_loan_maturity_date .................................... [[32mPASS[0m in 1.48s]
+[0m18:21:56  67 of 68 PASS valid_date_loan_origination_date ................................. [[32mPASS[0m in 4.08s]
+[0m18:21:57  68 of 68 PASS valid_date_repayment_schedule_due_date ........................... [[32mPASS[0m in 3.79s]
+[0m18:21:59  63 of 68 PASS unique_repayment_schedule_id ..................................... [[32mPASS[0m in 10.29s]
+[0m18:21:59  
+[0m18:21:59  1 of 1 START hook: lms_poc.on-run-end.0 ........................................ [RUN]
+[0m18:22:41  1 of 1 OK hook: lms_poc.on-run-end.0 ........................................... [[32mOK[0m in 42.22s]
+[0m18:22:41  
+[0m18:22:41  Finished running 1 project hook, 68 data tests in 0 hours 1 minutes and 31.04 seconds (91.04s).
+[0m18:22:41  
+[0m18:22:41  [31mCompleted with 5 errors, 0 partial successes, and 0 warnings:[0m
+[0m18:22:41  
+[0m18:22:41  [[31mERROR[0m]: in test accepted_values_dirty_data_currency__True__USD__EUR__GBP__JPY__CAD__AUD (seeds/properties.yml)
+[0m18:22:41    Got 1 result, configured to fail if != 0
+[0m18:22:41  
+[0m18:22:41    compiled code at target/compiled/lms_poc/seeds/properties.yml/accepted_values_dirty_data_f5bd5b19a426c231e93567ddb85fc5f7.sql
+[0m18:22:41  
+[0m18:22:41  [[31mERROR[0m]: in test not_null_dirty_data_id (seeds/properties.yml)
+[0m18:22:41    Got 1 result, configured to fail if != 0
+[0m18:22:41  
+[0m18:22:41    compiled code at target/compiled/lms_poc/seeds/properties.yml/not_null_dirty_data_id.sql
+[0m18:22:41  
+[0m18:22:41  [[31mERROR[0m]: in test positive_value_dirty_data_amount (seeds/properties.yml)
+[0m18:22:41    Got 1 result, configured to fail if != 0
+[0m18:22:41  
+[0m18:22:41    compiled code at target/compiled/lms_poc/seeds/properties.yml/positive_value_dirty_data_amount.sql
+[0m18:22:41  
+[0m18:22:41  [[31mERROR[0m]: in test relationships_dirty_data_borrower_id__id__ref_dim_borrower_ (seeds/properties.yml)
+[0m18:22:41    Got 1 result, configured to fail if != 0
+[0m18:22:41  
+[0m18:22:41    compiled code at target/compiled/lms_poc/seeds/properties.yml/relationships_dirty_data_borrower_id__id__ref_dim_borrower_.sql
+[0m18:22:41  
+[0m18:22:41  [[31mERROR[0m]: in test valid_date_dirty_data_origination_date (seeds/properties.yml)
+[0m18:22:41    Got 1 result, configured to fail if != 0
+[0m18:22:41  
+[0m18:22:41    compiled code at target/compiled/lms_poc/seeds/properties.yml/valid_date_dirty_data_origination_date.sql
+[0m18:22:41  
+[0m18:22:41  Done. PASS=64 WARN=0 ERROR=5 SKIP=0 NO-OP=0 REUSED=0 TOTAL=69
+dbt test exit code: 1
+dbt_test_failures=5 dbt_tests_total=68 quarantine_rows_total=16775
+=== pushed to http://pushgateway:9091/metrics/job/dbt/instance/lms-poc-dbt ===
+dbt_run_success{layer="bronze"} 1
+dbt_run_success{layer="silver"} 1
+dbt_run_success{layer="gold"} 1
+dbt_test_failures 5
+dbt_tests_total 68
+quarantine_rows_total 16775
+
+=== done ===
+scripts/run-and-push-metrics.sh: 110: Syntax error: Unterminated quoted string
+

@@ -1,0 +1,24 @@
+=== cask_commit 2026-11-05T05:19:17Z ===
+--- staged ---
+ dbt/README.md                                | 22 +++++----
+ dbt/models/gold/loan_delinquency.sql         | 52 +++++++++----------
+ dbt/models/schema.yml                        | 74 ++++++++++++++++++++++++++--
+ dbt/models/silver/loan.sql                   |  7 ++-
+ dbt/models/silver/repayment_schedule.sql     | 37 ++++++++++++++
+ dbt/models/silver/stg_loan.sql               | 16 ++++--
+ dbt/models/silver/stg_repayment_schedule.sql | 18 +++++++
+ dbt/models/sources.yml                       | 10 +++-
+ 8 files changed, 192 insertions(+), 44 deletions(-)
+[main 900dec1] feat(dbt): due_date-based NPL from repayment_schedule (Meridian, green-run pending)
+ 8 files changed, 192 insertions(+), 44 deletions(-)
+ create mode 100644 dbt/models/silver/repayment_schedule.sql
+ create mode 100644 dbt/models/silver/stg_repayment_schedule.sql
+--- log -3 ---
+900dec1 feat(dbt): due_date-based NPL from repayment_schedule (Meridian, green-run pending)
+ed4e4f9 feat(lms): real repayment schedule (term + due_date) for NPL — drop 365-day assumption
+ac6c188 fix(gold): real NPL delinquency — 90+ bucket + outstanding-based npl_rate
+--- status --short ---
+?? dbt/evidence/cask_commit.log
+?? dbt/evidence/cask_env_diag.log
+?? dbt/evidence/cask_git_diag.log
+=== commit complete ===

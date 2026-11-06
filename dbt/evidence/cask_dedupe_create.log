@@ -1,0 +1,23 @@
+=== dedupe create 2026-11-05T18:12:55Z ===
+--- existing repayment_schedule_dedup? ---
+  (state done)
+--- pre-dedupe bronze.repayment_schedule total/distinct_id ---
+[14347023, 6908334]
+  (state done)
+--- CTAS repayment_schedule_dedup (window + join-back) ---
+CTAS result rows: [[6908334]]
+CTAS wall seconds: 71.9
+--- deduped total / distinct id / distinct offset ---
+[6908334, 6908334, 6908334]
+  (state done)
+--- DESCRIBE repayment_schedule_dedup ---
+['due_date', 'varchar', '', '']
+['principal_due', 'double', '', '']
+['id', 'varchar', '', '']
+['installment_no', 'bigint', '', '']
+['loan_id', 'varchar', '', '']
+['interest_due', 'double', '', '']
+['status', 'varchar', '', '']
+['_cdc', 'row("op" varchar, "offset" bigint, "source" varchar, "key" row("id" varchar), "ts" bigint, "target" varchar)', '', '']
+  (state done)
+=== dedupe create complete ===

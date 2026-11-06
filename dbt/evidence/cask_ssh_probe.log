@@ -1,0 +1,49 @@
+=== cask_ssh_probe 2026-11-05T18:06:24Z ===
+--- key present? ---
+-rw------- 1 hermes hermes 399 Nov  4 06:54 /opt/data/.ssh/poc_vm
+--- ssh binary ---
+/usr/bin/ssh
+--- VM: whoami/hostname/uptime ---
+whoami=ubuntu
+hostname=lms-poc-vm
+Linux lms-poc-vm 6.8.0-1070-gcp #78~22.04.1-Ubuntu SMP Thu Sep 17 21:46:54 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+ 18:06:25 up 2 days, 14:05,  0 users,  load average: 0.59, 0.78, 1.07
+--- VM: docker ps ---
+lms-monitoring-trino-1	Up 32 minutes (healthy)	trinodb/trino:latest
+lms-monitoring-polaris-1	Up 2 hours	apache/polaris:latest
+lms-monitoring-connect-1	Up 11 minutes	debezium/connect:2.7.3.Final
+lms-monitoring-trino-metabase-gw-1	Up 2 hours (healthy)	nginx:1.27-alpine
+lms-monitoring-demo-1	Up 3 hours	lms-monitoring-demo
+lms-monitoring-demo-killswitch-1	Up 3 hours	lms-monitoring-demo-killswitch
+lms-monitoring-plane-1	Up 4 hours	makeplane/plane-backend:stable
+lms-monitoring-plane-minio-1	Up 4 hours	adobe/s3mock:latest
+lms-monitoring-lms-postgres-1	Up 7 hours (healthy)	postgres:16
+lms-monitoring-lms-api-1	Up 7 hours	lms-monitoring-lms-api
+lms-monitoring-dagster-daemon-1	Up 10 hours	onendo-dagster:latest
+lms-monitoring-dagster-1	Up 10 hours (healthy)	onendo-dagster:latest
+lms-monitoring-dagster-postgres-1	Up 25 hours (healthy)	postgres:16
+lms-monitoring-minio-1	Up 19 minutes	adobe/s3mock:latest
+lms-monitoring-metabase-1	Up 2 days	metabase/metabase:latest
+lms-monitoring-kafka-lag-exporter-1	Up 2 days	debezium/connect:2.7.3.Final
+lms-monitoring-blackbox-exporter-1	Up 2 days	prom/blackbox-exporter:latest
+lms-monitoring-plane-admin-1	Up 2 days (healthy)	makeplane/plane-admin:v1.4.3
+lms-monitoring-kafka-1	Up 2 days (unhealthy)	apache/kafka:3.8.1
+lms-monitoring-lms-postgres-exporter-1	Up 2 days	prometheuscommunity/postgres-exporter:latest
+lms-monitoring-plane-worker-1	Up 2 days	makeplane/plane-backend:stable
+lms-monitoring-ticket-bridge-1	Up 2 days	python:3.12-slim
+lms-monitoring-plane-web-1	Up 2 days (healthy)	makeplane/plane-frontend:v1.4.3
+lms-monitoring-grafana-1	Up 2 days	grafana/grafana:latest
+lms-monitoring-prometheus-1	Up 2 days	prom/prometheus:latest
+lms-monitoring-polaris-postgres-1	Up 2 days	postgres:16
+lms-monitoring-plane-db-1	Up 2 days	postgres:15.7-alpine
+lms-monitoring-plane-mq-1	Up 2 days	rabbitmq:3.13.6-management-alpine
+lms-monitoring-traefik-1	Up 35 hours	traefik:v3.2
+lms-monitoring-alertmanager-1	Up 2 days	prom/alertmanager:latest
+lms-monitoring-pushgateway-1	Up 2 days	prom/pushgateway:latest
+lms-monitoring-node-exporter-1	Up 2 days	prom/node-exporter:latest
+lms-monitoring-plane-redis-1	Up 2 days	valkey/valkey:7.2.11-alpine
+--- VM: trino /v1/info ---
+{"nodeId":"6040c158a469","state":"ACTIVE","nodeVersion":{"version":"484"},"environment":"docker","coordinator":true,"coordinatorId":"urvqz","starting":false,"uptime":"32.56m"}
+--- VM: kafka connect connectors ---
+["debezium-postgres","iceberg-sink"]
+=== probe complete ===

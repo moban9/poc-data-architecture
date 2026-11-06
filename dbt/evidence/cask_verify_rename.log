@@ -1,0 +1,12 @@
+=== verify rename 2026-11-05T18:15:46Z ===
+--- bronze tables (repayment_schedule%) ---
+['repayment_schedule']
+['repayment_schedule_pre_dedupe_20261105']
+--- bronze.repayment_schedule total/distinct_id (expect 6908334/6908334) ---
+[6908334, 6908334]
+--- backup pre_dedupe total/distinct_id (expect 14347023/6908334) ---
+[14347023, 6908334]
+--- sink status ---
+('ERROR', 'post: HTTP Error 400: Bad Request')
+sink: {"name": "iceberg-sink", "connector": {"state": "RUNNING", "worker_id": "172.18.0.29:8083"}, "tasks": [{"id": 0, "state": "RUNNING", "worker_id": "172.18.0.29:8083"}], "type": "sink"}
+=== verify complete ===

@@ -1,0 +1,55 @@
+=== dashboard3 payments verification 2026-11-05T18:23:59Z ===
+--- silver.repayment_schedule completeness (total / distinct id / distinct (loan_id,installment_no)) ---
+[6580511, 6580511, 6580511]
+  (rows: 1)
+--- Y3: overdue amount by currency ---
+['USD', 447369.26]
+['JPY', 447055.16]
+['GBP', 400086.63]
+['EUR', 397445.61]
+['CAD', 339470.24]
+['AUD', 316945.58]
+  (rows: 6)
+--- Y4: collection rate (dimensionless) ---
+[0.6042]
+  (rows: 1)
+--- Y5: installments by status (currency, status, count, amount_due) ---
+['AUD', 'scheduled', 1100041, 3205551701.91]
+['AUD', 'paid', 87, 448127.59]
+['AUD', 'overdue', 72, 316945.58]
+['CAD', 'scheduled', 1097066, 3211776368.29]
+['CAD', 'paid', 123, 507967.72]
+['CAD', 'overdue', 84, 339470.24]
+['EUR', 'scheduled', 1099325, 3209674219.02]
+['EUR', 'paid', 181, 1010807.51]
+['EUR', 'overdue', 82, 397445.61]
+['GBP', 'scheduled', 1093328, 3199252490.72]
+['GBP', 'paid', 110, 545089.21]
+['GBP', 'overdue', 86, 400086.63]
+['JPY', 'scheduled', 1098260, 3218594943.61]
+['JPY', 'paid', 122, 529600.18]
+['JPY', 'overdue', 103, 447055.16]
+['USD', 'scheduled', 1091243, 3187102553.46]
+['USD', 'paid', 113, 542741.73]
+['USD', 'overdue', 85, 447369.26]
+  (rows: 18)
+--- Y1: total collected (cash) by currency ---
+['EUR', 29870866.71]
+['AUD', 29489604.61]
+['JPY', 29466844.31]
+['USD', 29240995.52]
+['GBP', 29211023.85]
+['CAD', 29020691.7]
+  (rows: 6)
+--- Y2: total disbursed (cash) by currency ---
+['JPY', 1705464733.68]
+['EUR', 1697565393.57]
+['CAD', 1693643335.33]
+['AUD', 1692284429.84]
+['GBP', 1691501519.02]
+['USD', 1673731572.42]
+  (rows: 6)
+--- Y6: installment rollforward due-month count (distinct due_month) ---
+[60]
+  (rows: 1)
+=== dashboard3 verification complete ===

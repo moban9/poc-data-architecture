@@ -1,0 +1,46 @@
+=== bronze survey 2026-11-05T18:09:13Z ===
+--- tables in bronze/silver/gold ---
+['bronze', 'borrower']
+['bronze', 'borrower_legacy_20261105']
+['bronze', 'borrowers']
+['bronze', 'dirty_data']
+['bronze', 'loan']
+['bronze', 'loan_dedup_bad_20261105']
+['bronze', 'loan_event']
+['bronze', 'loan_event_legacy_20261105']
+['bronze', 'loan_event_pre_dedupe_20261105']
+['bronze', 'loan_legacy_20261105']
+['bronze', 'loan_pre_dedupe_20261105']
+['bronze', 'repayment_schedule']
+['gold', 'loan_delinquency']
+['gold', 'loan_delinquency_snapshot']
+['gold', 'loan_event_daily']
+['gold', 'loan_portfolio_summary']
+['silver', 'dim_borrower']
+['silver', 'loan']
+['silver', 'loan_event']
+['silver', 'quarantine_loan_amount_positive']
+['silver', 'quarantine_loan_borrower_relationship']
+['silver', 'quarantine_loan_currency_accepted']
+['silver', 'quarantine_loan_id_not_null']
+['silver', 'quarantine_loan_origination_date_valid']
+['silver', 'repayment_schedule']
+['silver', 'stg_loan']
+['silver', 'stg_repayment_schedule']
+--- bronze.repayment_schedule total/distinct_id/distinct_offset ---
+[14347023, 6908334, 14347023]
+--- bronze.loan total/distinct_id ---
+[354360, 354360]
+--- bronze.loan_event total/distinct_id ---
+[744605, 744605]
+--- bronze.borrower total/distinct_id ---
+[4, 4]
+--- silver.repayment_schedule total/distinct_id ---
+[6580511, 6580511]
+--- silver.loan total/distinct_id ---
+[337590, 337590]
+--- silver.loan_event total/distinct_id ---
+[705335, 705335]
+--- silver.dim_borrower total ---
+[4]
+=== survey complete ===

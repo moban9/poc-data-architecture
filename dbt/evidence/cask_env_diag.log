@@ -1,0 +1,75 @@
+=== cask_env_diag 2026-11-05T05:17:45Z ===
+hostname: a3b046084534
+whoami:   hermes
+pwd:      /opt/data/profiles/cask/scripts
+uname:    Linux a3b046084534 6.8.0-147-generic #147-Ubuntu SMP PREEMPT_DYNAMIC Thu Sep 24 11:33:16 UTC 2026 x86_64 GNU/Linux
+--- container check ---
+cgroup:   0::/ 
+--- docker ---
+which docker: /usr/bin/docker
+docker version: Docker version 26.1.5+dfsg1, build a72d7cd
+docker ps (head):
+Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
+--- compose project reachable? ---
+compose dir exists: yes
+--- dbt ---
+which dbt: 
+dbt version: /opt/data/profiles/cask/scripts/cask_env_diag.sh: line 23: dbt: command not found
+--- local TCP reachability (host-gateway vs localhost) ---
+curl http://localhost:8083/ -> curl: (7) Failed to connect to localhost port 8083 after 0 ms: Could not connect to server
+000
+curl http://localhost:8080/ -> curl: (7) Failed to connect to localhost port 8080 after 0 ms: Could not connect to server
+000
+curl http://localhost:8000/ -> curl: (7) Failed to connect to localhost port 8000 after 0 ms: Could not connect to server
+000
+curl http://localhost:8181/ -> curl: (7) Failed to connect to localhost port 8181 after 0 ms: Could not connect to server
+000
+curl http://localhost:5432/ -> curl: (7) Failed to connect to localhost port 5432 after 0 ms: Could not connect to server
+000
+curl http://127.0.0.1:8083/ -> curl: (7) Failed to connect to 127.0.0.1 port 8083 after 0 ms: Could not connect to server
+000
+curl http://127.0.0.1:8080/ -> curl: (7) Failed to connect to 127.0.0.1 port 8080 after 0 ms: Could not connect to server
+000
+curl http://127.0.0.1:8000/ -> curl: (7) Failed to connect to 127.0.0.1 port 8000 after 0 ms: Could not connect to server
+000
+curl http://127.0.0.1:8181/ -> curl: (7) Failed to connect to 127.0.0.1 port 8181 after 0 ms: Could not connect to server
+000
+curl http://127.0.0.1:5432/ -> curl: (7) Failed to connect to 127.0.0.1 port 5432 after 0 ms: Could not connect to server
+000
+curl http://host.docker.internal:8083/ -> curl: (6) Could not resolve host: host.docker.internal
+000
+curl http://host.docker.internal:8080/ -> curl: (6) Could not resolve host: host.docker.internal
+000
+curl http://host.docker.internal:8000/ -> curl: (6) Could not resolve host: host.docker.internal
+000
+curl http://host.docker.internal:8181/ -> curl: (6) Could not resolve host: host.docker.internal
+000
+curl http://host.docker.internal:5432/ -> curl: (6) Could not resolve host: host.docker.internal
+000
+curl http://172.17.0.1:8083/ -> curl: (7) Failed to connect to 172.17.0.1 port 8083 after 0 ms: Could not connect to server
+000
+curl http://172.17.0.1:8080/ -> curl: (7) Failed to connect to 172.17.0.1 port 8080 after 0 ms: Could not connect to server
+000
+curl http://172.17.0.1:8000/ -> curl: (7) Failed to connect to 172.17.0.1 port 8000 after 0 ms: Could not connect to server
+000
+curl http://172.17.0.1:8181/ -> curl: (7) Failed to connect to 172.17.0.1 port 8181 after 0 ms: Could not connect to server
+000
+curl http://172.17.0.1:5432/ -> curl: (7) Failed to connect to 172.17.0.1 port 5432 after 0 ms: Could not connect to server
+000
+curl http://172.16.0.1:8083/ -> curl: (7) Failed to connect to 172.16.0.1 port 8083 after 0 ms: Could not connect to server
+000
+curl http://172.16.0.1:8080/ -> curl: (7) Failed to connect to 172.16.0.1 port 8080 after 0 ms: Could not connect to server
+000
+curl http://172.16.0.1:8000/ -> curl: (7) Failed to connect to 172.16.0.1 port 8000 after 0 ms: Could not connect to server
+000
+curl http://172.16.0.1:8181/ -> curl: (7) Failed to connect to 172.16.0.1 port 8181 after 0 ms: Could not connect to server
+000
+curl http://172.16.0.1:5432/ -> curl: (7) Failed to connect to 172.16.0.1 port 5432 after 0 ms: Could not connect to server
+000
+--- trino info (localhost) ---
+curl: (7) Failed to connect to localhost port 8080 after 0 ms: Could not connect to server
+
+--- kafka connect connectors (localhost) ---
+curl: (7) Failed to connect to localhost port 8083 after 0 ms: Could not connect to server
+
+=== diag complete ===

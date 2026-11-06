@@ -1,0 +1,17 @@
+=== describe 2026-11-05T18:11:23Z ===
+--- DESCRIBE bronze.repayment_schedule ---
+['due_date', 'varchar', '', '']
+['principal_due', 'double', '', '']
+['id', 'varchar', '', '']
+['installment_no', 'bigint', '', '']
+['loan_id', 'varchar', '', '']
+['interest_due', 'double', '', '']
+['status', 'varchar', '', '']
+['_cdc', 'row("op" varchar, "offset" bigint, "source" varchar, "key" row("id" varchar), "ts" bigint, "target" varchar)', '', '']
+--- SHOW CREATE TABLE bronze.repayment_schedule ---
+["CREATE TABLE lakehouse.bronze.repayment_schedule (\n   due_date varchar,\n   principal_due double,\n   id varchar,\n   installment_no bigint,\n   loan_id varchar,\n   interest_due double,\n   status varchar,\n   _cdc ROW(op varchar, offset bigint, source varchar, key ROW(id varchar), ts bigint, target varchar)\n)\nWITH (\n   compression_codec = 'ZSTD',\n   format = 'PARQUET',\n   format_version = 2,\n   location = 's3://lakehouse/bronze/repayment_schedule'\n)"]
+--- SHOW CREATE TABLE bronze.loan (already-deduped, for comparison) ---
+["CREATE TABLE lakehouse.bronze.loan (\n   amount double,\n   currency varchar,\n   id varchar,\n   borrower_id varchar,\n   origination_date varchar,\n   _cdc ROW(op varchar, offset bigint, source varchar, key ROW(id varchar), ts bigint, target varchar),\n   disbursement_date varchar,\n   term_months bigint,\n   monthly_installment double,\n   interest_rate double,\n   maturity_date varchar\n)\nWITH (\n   format = 'PARQUET',\n   format_version = 2,\n   location = 's3://lakehouse/bronze/loan_dedup-32a26d7791a44e438d7343ee2b9a4df8'\n)"]
+--- silver.stg_repayment_schedule count ---
+[6908334, 6908334]
+=== describe complete ===
