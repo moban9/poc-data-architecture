@@ -1,8 +1,16 @@
--- Metabase native query — NPL rate KPI card.
+-- =============================================================================
+-- DEPRECATED — DO NOT PASTE THIS INTO METABASE. There is no query here.
+-- Superseded by: bi/metabase/dashboard/sql/02-npl.sql  (card "NPL · NPL rate (90+ / outstanding)")
 --
--- lakehouse.gold.loan_delinquency carries the SAME portfolio-level npl_rate on
--- every row (the Gold model computes it once as (90-179 + charge-off) / total
--- disbursed loans). Collapse to a single row for a KPI/single-number card.
-SELECT
-    MAX(npl_rate) AS npl_rate
-FROM lakehouse.gold.loan_delinquency;
+-- Why: the comment claimed npl_rate = (90-179 + charge-off) / total disbursed loans
+-- over buckets that this mart never produced. The real definition is
+--   npl_rate = 90+ outstanding / total outstanding,
+-- computed in dbt/models/gold/loan_delinquency.sql and carried on every bucket row.
+-- It is a balance ratio, not a loan-count ratio.
+--
+-- The NPL *trend* now exists too, and does NOT come from this table:
+--   dashboard/sql/02-npl.sql → "NPL · NPL rate trend (snapshot dates)"
+--   over lakehouse.gold.loan_delinquency_snapshot (append-only, one row-set per date).
+--
+-- Definitions: dashboard/metric_definitions.md
+-- =============================================================================

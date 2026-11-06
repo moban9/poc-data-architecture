@@ -75,7 +75,7 @@ From `compose/docker-compose.yml` (the `metabase` service):
    | Field | Value | Notes |
    |---|---|---|
    | Display name | `Lakehouse` | arbitrary label |
-   | Host | `trino` | **service name, not `localhost`** — resolved on the `lms-poc` network |
+   | Host | `trino-metabase-gw` | **the header gateway, not `trino`** — see §9 and [08](08-trino-metabase-auth.md); once the gateway is applied, `trino` 401s every Metabase query because Metabase sends `X-Presto-User` |
    | Port | `8080` | Trino HTTP port |
    | Username | `meridian` (or anything) | Trino is unauthenticated (`method: none`) |
    | Password | *(empty)* | no auth in POC |
@@ -215,5 +215,23 @@ and §5 are manual.
   Mitigations: `MB_ENABLE_QUERY_CACHING` is already `false`; avoid
   `SELECT *` on `bronze.*`; raise `-Xmx`/`mem_limit` only after confirming the
   host has headroom (`docker stats`).
+
+## 9. Trino connection auth (`presto-jdbc` vs Trino 484)
+
+Metabase v0.65's only Trino engine is `presto-jdbc` (`io.prestosql.jdbc`), which
+sends `X-Presto-User`; Trino 484 accepts only `X-Trino-User`. A connection saved
+straight to `trino:8080` therefore looks healthy but 401s on every query.
+
+The fix is the `trino-metabase-gw` nginx sidecar
+(`compose/docker-compose.metabase-trino-gw.yml`), which copies `X-Presto-User`
+into `X-Trino-User`; Trino stays unauthenticated, so dbt/Dagster are untouched.
+**Leave the Metabase Password field empty** — the Presto JDBC driver refuses
+`user`+`password` unless SSL is enabled
+(`Authentication using username/password requires SSL to be enabled`), so a
+password on this connection can never work over plain HTTP.
+
+Apply, verify, cost and rollback: [08 — Metabase → Trino authentication](08-trino-metabase-auth.md).
+
+---
 
 Produced by: Prism · Reviewed by: Ledger

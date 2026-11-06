@@ -1,0 +1,50 @@
+# Additive compose override — the Metabase → Trino header gateway.
+#
+# It is a SEPARATE file on purpose: `docker compose up -d` in compose/ keeps
+# behaving exactly as it does today. Applying this file is an explicit,
+# reviewable act (docs/08-trino-metabase-auth.md):
+#
+#   cd compose
+#   docker compose -f docker-compose.yml -f docker-compose.metabase-trino-gw.yml \
+#     up -d trino-metabase-gw metabase
+#
+# Then point the Metabase connection at host `trino-metabase-gw` (port 8080,
+# user `admin`, NO password, SSL off) — `provision_metabase.py --create-db`
+# does that for you.
+#
+# Why not Trino password auth: Metabase's only Trino engine (presto-jdbc,
+# io.prestosql.jdbc) refuses a password over plain HTTP
+# ("Authentication using username/password requires SSL to be enabled") and
+# Trino 484 requires TLS or process-forwarding plus a shared secret for any
+# authenticator. The gateway leaves Trino unauthenticated, so dbt/Dagster
+# (X-Trino-User) are unaffected.
+name: lms-monitoring
+
+services:
+  trino-metabase-gw:
+    restart: unless-stopped
+    image: ${TRINO_GW_IMAGE:-nginx:1.27-alpine}
+    volumes:
+      - ./trino-metabase-gw/nginx.conf:/etc/nginx/nginx.conf:ro
+    expose:
+      - "8080"
+    # No host port: only Metabase (and anything else on lms-poc) should reach it.
+    depends_on:
+      trino:
+        condition: service_healthy
+    mem_limit: 64m
+    cpus: 0.25
+    healthcheck:
+      # /v1/info through the gateway: proves nginx is up AND Trino answers the
+      # translated header (an unauthorised request would 401 here).
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/v1/info >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  # Ordering only: Metabase may start once the gateway is up. Nothing else
+  # about the metabase service changes.
+  metabase:
+    depends_on:
+      - trino
+      - trino-metabase-gw

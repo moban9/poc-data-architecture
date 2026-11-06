@@ -1,19 +1,15 @@
--- Metabase native query — delinquency-bucket table card.
+-- =============================================================================
+-- DEPRECATED — DO NOT PASTE THIS INTO METABASE. There is no query here.
+-- Superseded by: bi/metabase/dashboard/sql/02-npl.sql  (card "NPL · Delinquency buckets")
 --
--- One row per bucket: loan_count, outstanding_balance, and share_of_book
--- (the bucket's share of the total outstanding balance across all buckets).
--- Buckets are ordered by severity, not alphabetically.
-SELECT
-    delinquency_bucket,
-    loan_count,
-    outstanding_balance,
-    round(outstanding_balance / SUM(outstanding_balance) OVER (), 4) AS share_of_book
-FROM lakehouse.gold.loan_delinquency
-ORDER BY
-    CASE delinquency_bucket
-        WHEN 'current' THEN 1
-        WHEN '30-59' THEN 2
-        WHEN '60-89' THEN 3
-        WHEN '90-179' THEN 4
-        WHEN 'charge-off' THEN 5
-    END;
+-- Why: this file ordered buckets as current / 30-59 / 60-89 / 90-179 / charge-off.
+-- `lakehouse.gold.loan_delinquency` has never emitted `90-179` or `charge-off` — it
+-- emits current (<30) / 30-59 / 60-89 / 90+. Pasting the old query silently returned
+-- 3 rows with two buckets sorted into the ELSE branch, i.e. wrong data, not an error.
+--
+-- The source has no write-off event, so a charge-off bucket cannot be built. It stays
+-- out of the dashboard until src/lms grows a write-off event (README §6).
+--
+-- Current card: dashboard/sql/02-npl.sql → "NPL · Delinquency buckets"
+-- Definitions: dashboard/metric_definitions.md
+-- =============================================================================

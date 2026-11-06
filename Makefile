@@ -29,7 +29,7 @@ deploy:
 	@test -n "$(IP)" || (echo "run 'make apply' first (need VM IP)"; exit 1)
 	ssh ubuntu@$(IP) "mkdir -p $(REMOTE)"
 	rsync -az --exclude terraform --exclude .git ./ ubuntu@$(IP):$(REMOTE)/
-	ssh ubuntu@$(IP) "cd $(REMOTE)/compose && docker compose -f docker-compose.yml -f monitoring.yml -f traefik.yml up -d --pull always"
+	ssh ubuntu@$(IP) "cd $(REMOTE)/compose && docker compose -f docker-compose.yml -f monitoring.yml -f traefik.yml -f docker-compose.metabase-trino-gw.yml up -d --pull always"
 	@echo "deployed — check with 'make status'"
 
 # Data-virtualization demo: same query, two engines, one catalog (pending lake wiring).

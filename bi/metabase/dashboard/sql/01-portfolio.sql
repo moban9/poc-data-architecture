@@ -3,7 +3,18 @@
 -- Dashboard: LMS POC — Business Performance (Gold)   ·   Owner: Prism (BI)
 -- Source of truth: lakehouse.gold.loan_portfolio_summary
 --                   (dbt models/gold/loan_portfolio_summary.sql)
--- Extra card:      lakehouse.silver.loan  (currency exposure — NOT in gold yet)
+--
+-- GRAIN: one row per (loan_status, loan_type, currency) — currency was added to
+-- the grain by Keystone (t_51346c5a), so the mart is finer than the cards need.
+--
+-- MONEY UNITS — READ BEFORE EDITING A MONEY CARD:
+--   total_principal / outstanding_balance / avg_amount are NOMINAL PER CURRENCY.
+--   The book spans USD/EUR/GBP/JPY/CAD/AUD with NO FX conversion (deliberate:
+--   option (a), see the model header). SUM-ing a money column across currencies
+--   produces a mixed-currency nominal figure, which is NOT a real total.
+--   => every money card below is sliced by `currency` (P2, P4, P6, P8, P9, P10).
+--   => counts (P3, P5, P7) are currency-agnostic; those total safely.
+--   There is intentionally no single cross-currency "headline" money number.
 --
 -- Every card below is a real query over the gold mart. No literals, no stubs.
 -- Metric definitions: ../metric_definitions.md
@@ -15,32 +26,40 @@
 
 -- === card: Portfolio · Data as of | display: scalar | size: 6x3 ===
 -- AS-OF DEFINITION: the gold marts are point-in-time builds; "now" for the
--- dataset is the latest loan_event timestamp (see loan_delinquency.sql note).
+-- dataset is the latest loan_event timestamp (same value the snapshot models use).
 SELECT
     CAST(MAX(occurred_at) AS date) AS as_of_date
 FROM lakehouse.silver.loan_event;
 
 
--- === card: Portfolio · Outstanding balance | display: scalar | size: 6x3 | fmt: outstanding_balance=currency ===
--- DEFINITION: principal - payments received, floored at 0, summed over the book.
--- Units: nominal amount (see the FX / mixed-currency caveat in metric_definitions.md).
-SELECT
-    ROUND(SUM(outstanding_balance), 2) AS outstanding_balance
-FROM lakehouse.gold.loan_portfolio_summary;
-
-
 -- === card: Portfolio · Loans in book | display: scalar | size: 6x3 ===
 -- DEFINITION: count of clean (Silver-passing) loans, all statuses.
+-- Counts are currency-agnostic, so this is a real total (unlike the money cards).
 SELECT
     SUM(loan_count) AS loan_count
 FROM lakehouse.gold.loan_portfolio_summary;
 
 
--- === card: Portfolio · Principal originated | display: scalar | size: 6x3 | fmt: total_principal=currency ===
--- DEFINITION: sum of loan principal across the book (not net of repayments).
+-- === card: Portfolio · Outstanding balance by currency | display: bar | size: 12x5 | x: currency | y: outstanding_balance | fmt: outstanding_balance=currency ===
+-- DEFINITION: principal - payments received, floored at 0 per loan, summed per currency.
+-- One bar per ISO-4217 currency: each bar is a real amount in its own unit.
+-- Replaces the old single scalar, which summed 6 currencies into a meaningless total.
 SELECT
+    currency,
+    ROUND(SUM(outstanding_balance), 2) AS outstanding_balance
+FROM lakehouse.gold.loan_portfolio_summary
+GROUP BY 1
+ORDER BY 2 DESC;
+
+
+-- === card: Portfolio · Principal originated by currency | display: bar | size: 12x5 | x: currency | y: total_principal | fmt: total_principal=currency ===
+-- DEFINITION: gross principal written (not net of repayments), per currency.
+SELECT
+    currency,
     ROUND(SUM(total_principal), 2) AS total_principal
-FROM lakehouse.gold.loan_portfolio_summary;
+FROM lakehouse.gold.loan_portfolio_summary
+GROUP BY 1
+ORDER BY 2 DESC;
 
 
 -- === card: Portfolio · Loans by status | display: bar | size: 12x5 | x: loan_status | y: loan_count ===
@@ -56,13 +75,17 @@ GROUP BY 1
 ORDER BY 2 DESC;
 
 
--- === card: Portfolio · Outstanding by status | display: bar | size: 12x5 | x: loan_status | y: outstanding_balance | fmt: outstanding_balance=currency ===
+-- === card: Portfolio · Outstanding by status | display: table | size: 12x6 | fmt: outstanding_balance=currency ===
+-- DEFINITION: money still owed per lifecycle status, split by currency so every
+-- row carries its own unit (a status total alone would still mix 6 currencies).
 SELECT
     loan_status,
+    currency,
+    SUM(loan_count)                    AS loan_count,
     ROUND(SUM(outstanding_balance), 2) AS outstanding_balance
 FROM lakehouse.gold.loan_portfolio_summary
-GROUP BY 1
-ORDER BY 2 DESC;
+GROUP BY 1, 2
+ORDER BY 4 DESC;
 
 
 -- === card: Portfolio · Loans by tier | display: bar | size: 12x5 | x: loan_type | y: loan_count ===
@@ -81,48 +104,58 @@ ORDER BY CASE loan_type
          END;
 
 
--- === card: Portfolio · Avg loan size by tier | display: bar | size: 12x5 | x: loan_type | y: avg_loan_size | fmt: avg_loan_size=currency ===
--- DEFINITION: total_principal / loan_count within the tier (not the mean of means).
+-- === card: Portfolio · Avg loan size by tier | display: table | size: 12x6 | fmt: avg_loan_size=currency ===
+-- DEFINITION: total_principal / loan_count within the tier AND currency
+-- (not the mean of means; not an average across currencies, which would be nominal nonsense).
 SELECT
     loan_type,
-    ROUND(SUM(total_principal) / NULLIF(SUM(loan_count), 0), 2) AS avg_loan_size
+    currency,
+    SUM(loan_count)                                                  AS loan_count,
+    ROUND(SUM(total_principal) / NULLIF(SUM(loan_count), 0), 2)       AS avg_loan_size
 FROM lakehouse.gold.loan_portfolio_summary
-GROUP BY 1
+GROUP BY 1, 2
 ORDER BY CASE loan_type
              WHEN 'micro' THEN 1
              WHEN 'small' THEN 2
              WHEN 'medium' THEN 3
              ELSE 4
-         END;
+         END,
+         4 DESC;
 
 
 -- === card: Portfolio · Status × tier detail | display: table | size: 24x6 | fmt: total_principal=currency,outstanding_balance=currency,avg_loan_size=currency ===
--- The full mart at its native grain (one row per status × tier).
+-- The full mart at its native grain (one row per status × tier × currency).
 SELECT
     loan_status,
     loan_type,
+    currency,
     SUM(loan_count)                                                  AS loan_count,
     ROUND(SUM(total_principal), 2)                                   AS total_principal,
     ROUND(SUM(outstanding_balance), 2)                               AS outstanding_balance,
     ROUND(SUM(total_principal) / NULLIF(SUM(loan_count), 0), 2)       AS avg_loan_size
 FROM lakehouse.gold.loan_portfolio_summary
-GROUP BY 1, 2
+GROUP BY 1, 2, 3
 ORDER BY 1, CASE loan_type
                 WHEN 'micro' THEN 1
                 WHEN 'small' THEN 2
                 WHEN 'medium' THEN 3
                 ELSE 4
-            END;
+            END,
+         3;
 
 
--- === card: Portfolio · Book by currency | display: table | size: 12x5 | fmt: principal=currency ===
--- SOURCE: lakehouse.silver.loan (gold has NO currency dimension — see README "Known gaps").
--- Why this card exists: every gold monetary KPI sums across 6 currencies with no FX
--- conversion. This panel makes the mixed-currency exposure visible instead of hidden.
+-- === card: Portfolio · Book by currency | display: table | size: 12x5 | fmt: total_principal=currency,outstanding_balance=currency,avg_loan_size=currency,share_of_principal=percent ===
+-- SOURCE: lakehouse.gold.loan_portfolio_summary (gold) — previously read silver.loan
+-- because gold had no currency dimension. It does now (Keystone t_51346c5a).
+-- Why this card exists: the book is 6 currencies with no FX; this is the panel that
+-- makes the split explicit and gives the per-currency share of the nominal book.
 SELECT
     currency,
-    COUNT(*)              AS loan_count,
-    ROUND(SUM(amount), 2) AS principal
-FROM lakehouse.silver.loan
+    SUM(loan_count)                                                 AS loan_count,
+    ROUND(SUM(total_principal), 2)                                  AS total_principal,
+    ROUND(SUM(outstanding_balance), 2)                              AS outstanding_balance,
+    ROUND(SUM(total_principal) / NULLIF(SUM(loan_count), 0), 2)      AS avg_loan_size,
+    ROUND(SUM(total_principal) / NULLIF(SUM(SUM(total_principal)) OVER (), 0), 4) AS share_of_principal
+FROM lakehouse.gold.loan_portfolio_summary
 GROUP BY 1
 ORDER BY 3 DESC;

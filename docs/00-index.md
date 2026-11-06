@@ -29,6 +29,17 @@ When bronze stops filling — sink `RUNNING` but `committed to 0 table(s)`, or P
 [the Bronze CDC runbook](07-cdc-bronze-runbook.md). It also carries the only
 supported verification: inject N loans, watch the bronze count move by N.
 
+Metabase cards erroring with 401 while the `Lakehouse` connection looks saved is
+the `presto-jdbc` / `X-Presto-User` gap: see
+[08 — Metabase → Trino authentication](08-trino-metabase-auth.md) (staged fix +
+the reason Trino password auth cannot work over plain HTTP).
+
+Bronze row counts that exceed the source are not a dbt bug: the sink is
+at-least-once and the Apache Iceberg Kafka Connect writer is append-only, so a
+replayed window lands as duplicate rows. The mechanism, the evidence that
+`upsert-mode-enabled` does nothing on the pinned connector, and the remediation
+options are in [09 — CDC delivery semantics](09-cdc-delivery-semantics.md).
+
 ## Before you start — you need
 
 - A GCP project with billing enabled and the free-trial credit intact (the VM is

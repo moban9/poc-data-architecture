@@ -1,47 +1,31 @@
-# Metabase — NPL reporting artifacts
+# Metabase — NPL reporting artifacts (superseded)
 
-Paste-ready Trino SQL + UI steps for the two NPL cards. Both queries target the
-Gold mart `lakehouse.gold.loan_delinquency` (dbt model
-`dbt/models/gold/loan_delinquency.sql`), so they are reproducible after any
-`dbt run`.
+**This directory no longer holds hand-built NPL card SQL.** The dashboard is provisioned
+by script from a versioned card pack, and the two paste-ready queries that used to live
+here are **deprecated**.
 
-Prerequisite: the Trino connection must already exist in Metabase (display name
-`Lakehouse`, catalog `lakehouse`, schema `gold`) — see `docs/04-metabase.md` §3.
-There is no API automation in this repo; cards are built manually in the UI
-(`docs/04-metabase.md` §7).
+| Old file | Status | Replaced by |
+|---|---|---|
+| `npl_rate_kpi.sql` | **deprecated stub** (no query) | `dashboard/sql/02-npl.sql` → *NPL · NPL rate (90+ / outstanding)* |
+| `delinquency_buckets.sql` | **deprecated stub** (no query) | `dashboard/sql/02-npl.sql` → *NPL · Delinquency buckets* |
 
-## Card 1 — NPL rate (KPI)
+Why they were retired: both assumed buckets `90-179` and `charge-off`, which
+`lakehouse.gold.loan_delinquency` has never emitted (it emits `current` / `30-59` /
+`60-89` / `90+`). They also stated NPL rate as a loan-count ratio; the real definition is
+**90+ outstanding / total outstanding** (a balance ratio).
 
-Query file: [`npl_rate_kpi.sql`](npl_rate_kpi.sql)
+## Where to go now
 
-1. **Metabase → New → Question → Native query** (the SQL editor).
-2. Select the **`Lakehouse`** database (the Trino connection).
-3. Paste the contents of `npl_rate_kpi.sql`.
-4. **Run** — expect one numeric cell (e.g. `0.1234`).
-5. Bottom-right **Visualize → Display: Number** (KPI / single number).
-6. Column formatting: set field **`npl_rate`** format to **Percent**
-   (Metabase multiplies by 100) — `0.1234` renders as `12.34%`.
-7. **Save** → name `NPL rate` → add to the target dashboard.
+* **Build / refresh the dashboard:** `cd dashboard && python3 provision_metabase.py --database-name 'Lakehouse (Trino)'`
+  — see `dashboard/README.md` §3. The connection display name is `Lakehouse (Trino)`
+  (Metabase db id=2; engine `starburst` / `io.trino.jdbc`, host `trino:8080`, no password).
+* **Definitions:** `dashboard/metric_definitions.md` (one line per tile, plus the
+  per-currency money rules).
+* **NPL trend:** card *NPL · NPL rate trend (snapshot dates)* over
+  `lakehouse.gold.loan_delinquency_snapshot` — real, append-only, one point per date the
+  pipeline has run on.
+* **Charge-off / NPL→loss:** not buildable. The LMS source has no write-off event; add the
+  panel only when `src/lms` grows one. Do not add a `charge-off` bucket speculatively.
 
-## Card 2 — Delinquency buckets (table)
-
-Query file: [`delinquency_buckets.sql`](delinquency_buckets.sql)
-
-1. **Metabase → New → Question → Native query** → **`Lakehouse`** database.
-2. Paste the contents of `delinquency_buckets.sql`.
-3. **Run** — expect one row per bucket (`current`, `30-59`, `60-89`, `90-179`,
-   `charge-off`) with `loan_count`, `outstanding_balance`, `share_of_book`.
-4. **Visualize → Display: Table**.
-5. Column formatting: `outstanding_balance` → **Currency** (or plain number);
-   `share_of_book` → **Percent**.
-6. **Save** → name `Delinquency buckets` → add to the same dashboard.
-
-## Dashboard
-
-- Put `NPL rate` as the headline KPI and `Delinquency buckets` beside it.
-- Both are portfolio-level (no filters required).
-- Charge-off definition: `charge-off` = ≥180 days past due; `90-179` is
-  non-performing but not yet charged off. NPL rate = (90-179 + charge-off) /
-  total disbursed loans (defined in `dbt/models/gold/loan_delinquency.sql`).
-- To populate every bucket, run the LMS scenario endpoint
-  `POST /scenarios/loan-book` (see `src/lms/README.md`), then `dbt run`.
+Do not add new paste-ready SQL here — extend the card pack in `dashboard/sql/` instead, so
+every panel keeps a definition line and a verification run.
