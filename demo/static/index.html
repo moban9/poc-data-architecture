@@ -181,8 +181,8 @@
   <div class="inject-head">
     <span class="glyph">💉</span>
     <div>
-      <div class="name">Inject Data</div>
-      <div class="desc">POST to LMS /generate — real source write</div>
+      <div class="name">Scenario A/B — Inject Data</div>
+      <div class="desc">POST to LMS /generate — A: clean · B: mixed (DQ quarantine)</div>
     </div>
   </div>
   <label class="field">
@@ -192,9 +192,9 @@
   <label class="field">
     <span>Mode</span>
     <select id="inject-mode">
-      <option value="clean">clean</option>
-      <option value="dirty">dirty</option>
-      <option value="mixed">mixed</option>
+      <option value="clean">clean (A)</option>
+      <option value="dirty">dirty (B)</option>
+      <option value="mixed">mixed (B)</option>
     </select>
   </label>
   <button class="inject-btn" id="inject-btn">💉 Inject Data</button>
@@ -204,7 +204,7 @@
   <div class="inject-head">
     <span class="glyph">📉</span>
     <div>
-      <div class="name">NPL Loan Book</div>
+      <div class="name">Scenario A — NPL Loan Book</div>
       <div class="desc">POST to LMS /scenarios/loan-book — every delinquency bucket</div>
     </div>
   </div>
@@ -217,13 +217,13 @@
 
 <section class="scenarios" id="scenarios">
   <button class="scenario" data-scenario="npl-book">
-    <div class="glyph">📉</div><div class="name">NPL Book</div><div class="desc">Loans with real repayment schedules in every delinquency bucket (current → 90+)</div>
+    <div class="glyph">📉</div><div class="name">A · NPL Book</div><div class="desc">Loans with real repayment schedules in every delinquency bucket (current → 90+)</div>
   </button>
   <button class="scenario" data-scenario="failure">
-    <div class="glyph">❌</div><div class="name">Failure</div><div class="desc">Iceberg sink commit fails, pipeline halts</div>
+    <div class="glyph">❌</div><div class="name">C · Failure</div><div class="desc">Iceberg sink commit fails, pipeline halts</div>
   </button>
   <button class="scenario" data-scenario="incident">
-    <div class="glyph">🚨</div><div class="name">Incident</div><div class="desc">Gold SLO breach → auto-ticket in Plane</div>
+    <div class="glyph">🚨</div><div class="name">D · Incident</div><div class="desc">Gold SLO breach → auto-ticket in Plane</div>
   </button>
 </section>
 
