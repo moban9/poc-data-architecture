@@ -81,9 +81,10 @@ real pipeline and streams per-hop results; the page shows an **animated SVG pipe
 - **Trigger incident ticket** → manual governance-loop demo → ticket id + URL.
 
 ## Monitoring & incident management
-- Grafana dashboard `pipeline.json` (auto-provisioned): a **Node Graph** of the
-  pipeline colored by live health, plus time-series for connector status, consumer lag,
-  quarantine count, and dbt test results.
+- Grafana dashboard `pipeline.json` (auto-provisioned): the pipeline topology as a
+  vertical chain of **stat panels** that render UP/DOWN as green/red status dots
+  (never `1`/`0`), plus time-series for consumer lag, quarantine count, and dbt test
+  results.
 - Alert rules: `KafkaConnectConnectorFailed`, `KafkaConsumerLagTooHigh`,
   `DbtTestFailures`, `QuarantineRowsPresent`, `ServiceDown`.
 - Alert path: Prometheus rule → Alertmanager webhook → `ticket-bridge` → Plane issue

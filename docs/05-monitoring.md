@@ -64,7 +64,8 @@ Notes:
 Rules live in `monitoring/prometheus/rules/pipeline.yml`. The `pipeline_topology`
 group only builds **recording rules** (not alerts): `pipeline_stage_health{stage}`,
 `pipeline_stage_health_effective` (real health overridden by `demo_failure`), and
-`pipeline_stage_edge{source,target}` — all consumed by the Grafana Node Graph.
+`pipeline_stage_edge{source,target}` (kept for graph-style panels; the dashboard
+itself now renders the chain as stat panels, so no panel consumes it today).
 
 The `pipeline_alerts` group defines five alerts:
 
@@ -168,9 +169,9 @@ Dashboard **“LMS Pipeline Health”** (uid `lms-pipeline-health`, refresh 30s,
 
 | Panel title | Type | What it answers |
 |-------------|------|-----------------|
-| Pipeline topology (colored by live health) | nodeGraph | Which stage is up/down; node color = `pipeline_stage_health_effective` (0=red, 1=green) over `LMS → Debezium → Kafka → Iceberg → Bronze → Silver → Gold → BI` |
+| Pipeline topology (9 stat panels, x=0) | stat | Which stage is up/down, read top-to-bottom: `1 · LMS (source)` → `2 · Debezium (CDC)` → `3 · Kafka` → `4 · Iceberg` → `5 · Bronze` → `6 · Silver` → `7 · Gold` → `8 · Polaris` → `9 · Trino → Metabase (BI)`. Each panel maps its value to a status dot: **● UP** green / **● DOWN** red — never `1`/`0` |
 | Pipeline lag (consumer group lag) | timeseries | `max by (group,topic) (kafka_consumergroup_lag)` — is the sink keeping up |
-| Kafka Connect connector status | timeseries | `count by (connector,status) (kafka_connect_connector_status)` — RUNNING vs FAILED |
+| Kafka Connect connector status | stat | Per connector (`debezium-postgres`, `iceberg-sink`): `max by (connector) (kafka_connect_connector_status{status="running"}) or (0 * max by (connector) (kafka_connect_connector_status{status!="running"}))` → **● RUNNING** green / **● FAILED** red |
 | Quarantine row count | timeseries (bars) | `quarantine_rows_total` — how many rows the DQ gate quarantined |
 | dbt test results | timeseries | `dbt_test_failures` vs `dbt_tests_total` |
 | Services up | timeseries (bool 0/1) | `up{job=~"node-exporter\|kafka\|connect\|trino\|polaris\|lms-postgres\|lms"} or probe_success{job="minio"}` |
