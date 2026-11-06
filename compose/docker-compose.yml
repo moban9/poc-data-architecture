@@ -240,7 +240,7 @@ services:
     - kafka_data:/var/lib/kafka/data
     - ../monitoring/jmx:/opt/jmx:ro
     healthcheck:
-      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "JAVA_TOOL_OPTIONS= /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1 || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 10
