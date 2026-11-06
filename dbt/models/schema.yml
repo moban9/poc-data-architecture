@@ -125,6 +125,14 @@ models:
           - relationships:
               to: ref('loan')
               field: id
+      - name: currency
+        description: "ISO 4217 currency code of the parent loan (denormalized via loan_id)."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["IDR"]
+                quote: true
       - name: installment_no
         description: "1-based instalment number within the loan's schedule."
         tests:
@@ -153,7 +161,7 @@ models:
 
   # ── Gold models ──────────────────────────────────────────────────────────
   - name: loan_portfolio_summary
-    description: "Gold: loan portfolio summary grouped by derived loan_status and loan_type."
+    description: "Gold: loan portfolio summary grouped by derived loan_status, loan_type and currency."
     columns:
       - name: loan_status
         description: "Derived lifecycle status: originated / disbursed / repaying."
@@ -163,6 +171,14 @@ models:
         description: "Derived principal-size tier: micro / small / medium / large."
         tests:
           - not_null
+      - name: currency
+        description: "ISO 4217 currency code — the money grain is per-currency (no FX)."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["IDR"]
+                quote: true
       - name: loan_count
         description: "Number of clean loans in the group."
       - name: total_principal
@@ -205,12 +221,25 @@ models:
           - not_null
 
   - name: loan_event_daily
-    description: "Gold: daily loan event rollup (counts and amounts per calendar day)."
+    description: "Gold: daily loan event rollup (counts and amounts per calendar day, per currency)."
+    tests:
+      - unique_combination:
+          combination:
+            - event_date
+            - currency
     columns:
       - name: event_date
         description: "Calendar day of the events."
         tests:
           - not_null
+      - name: currency
+        description: "ISO 4217 currency code — the money grain is per-currency (no FX)."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["IDR"]
+                quote: true
       - name: total_events
         description: "Total events that day."
       - name: origination_count
