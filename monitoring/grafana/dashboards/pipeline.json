@@ -23,63 +23,904 @@
   "panels": [
     {
       "id": 1,
-      "type": "nodeGraph",
-      "title": "Pipeline topology (colored by live health)",
-      "description": "LMS -> Debezium -> Kafka -> Iceberg -> Bronze -> Silver -> Gold -> BI. Node color follows pipeline_stage_health (0 = down/red, 1 = up/green), fed by the recording rules in monitoring/prometheus/rules/pipeline.yml.",
+      "type": "stat",
+      "title": "1 · LMS (source)",
+      "description": "CDC source database (lms-postgres): up = scrape succeeds.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
       "gridPos": {
-        "h": 12,
-        "w": 24,
+        "h": 3,
+        "w": 8,
         "x": 0,
         "y": 0
       },
       "targets": [
         {
-          "refId": "nodes",
-          "expr": "label_replace(label_replace(label_replace(pipeline_stage_health_effective > 0, \"color\", \"green\", \"stage\", \"(.*)\") or label_replace(pipeline_stage_health_effective == 0, \"color\", \"red\", \"stage\", \"(.*)\"), \"title\", \"$1\", \"stage\", \"(.*)\"), \"id\", \"$1\", \"stage\", \"(.*)\")",
+          "refId": "A",
+          "expr": "pipeline_stage_health_effective{stage=\"LMS\"}",
           "legendFormat": "{{stage}}",
           "instant": true,
           "range": false,
-          "format": "table"
+          "format": "time_series"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
         },
+        "orientation": "horizontal",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "● DOWN",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "● UP",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "decimals": 0,
+          "noValue": "NO DATA",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "2 · Debezium (CDC)",
+      "description": "Kafka Connect / Debezium worker streaming Postgres WAL into Kafka.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 8,
+        "x": 0,
+        "y": 3
+      },
+      "targets": [
         {
-          "refId": "edges",
-          "expr": "label_join(pipeline_stage_edge, \"id\", \"-\", \"source\", \"target\")",
-          "legendFormat": "{{source}} -> {{target}}",
+          "refId": "A",
+          "expr": "pipeline_stage_health_effective{stage=\"Debezium\"}",
+          "legendFormat": "{{stage}}",
           "instant": true,
           "range": false,
-          "format": "table"
+          "format": "time_series"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "● DOWN",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "● UP",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "decimals": 0,
+          "noValue": "NO DATA",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "3 · Kafka",
+      "description": "Broker health: up = broker scrape succeeds.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 8,
+        "x": 0,
+        "y": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "pipeline_stage_health_effective{stage=\"Kafka\"}",
+          "legendFormat": "{{stage}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "● DOWN",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "● UP",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "decimals": 0,
+          "noValue": "NO DATA",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "4 · Iceberg (object store)",
+      "description": "S3/MinIO object store behind the Iceberg tables (blackbox probe).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 8,
+        "x": 0,
+        "y": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "pipeline_stage_health_effective{stage=\"Iceberg\"}",
+          "legendFormat": "{{stage}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "● DOWN",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "● UP",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "decimals": 0,
+          "noValue": "NO DATA",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "5 · Bronze (dbt)",
+      "description": "dbt_run_success{layer=bronze}, pushed by Dagster/dbt.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 8,
+        "x": 0,
+        "y": 12
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "pipeline_stage_health_effective{stage=\"Bronze\"}",
+          "legendFormat": "{{stage}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "● DOWN",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "● UP",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "decimals": 0,
+          "noValue": "NO DATA",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "6 · Silver (dbt)",
+      "description": "dbt_run_success{layer=silver}.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 8,
+        "x": 0,
+        "y": 15
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "pipeline_stage_health_effective{stage=\"Silver\"}",
+          "legendFormat": "{{stage}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "● DOWN",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "● UP",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "decimals": 0,
+          "noValue": "NO DATA",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "7 · Gold (dbt)",
+      "description": "dbt_run_success{layer=gold}.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 8,
+        "x": 0,
+        "y": 18
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "pipeline_stage_health_effective{stage=\"Gold\"}",
+          "legendFormat": "{{stage}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "● DOWN",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "● UP",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "decimals": 0,
+          "noValue": "NO DATA",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "8 · Polaris (catalog)",
+      "description": "Iceberg REST catalog: up = Polaris scrape succeeds.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 8,
+        "x": 0,
+        "y": 21
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(up{job=\"polaris\"})",
+          "legendFormat": "Polaris",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "● DOWN",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "● UP",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "decimals": 0,
+          "noValue": "NO DATA",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "9 · Trino → Metabase (BI)",
+      "description": "Trino is the query engine behind Metabase: up = up{job=trino}.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 8,
+        "x": 0,
+        "y": 24
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "pipeline_stage_health_effective{stage=\"BI\"}",
+          "legendFormat": "{{stage}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "● DOWN",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "● UP",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "decimals": 0,
+          "noValue": "NO DATA",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "Kafka Connect connector status",
+      "description": "Per-connector health: 1 = the connector reports a RUNNING task (green), 0 = any other state such as FAILED/PAUSED (red). Source: kafka_connect_connector_status.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 8,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (connector) (kafka_connect_connector_status{status=\"running\"}) or (0 * max by (connector) (kafka_connect_connector_status{status!=\"running\"}))",
+          "legendFormat": "{{connector}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "● FAILED",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "● RUNNING",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "decimals": 0,
+          "noValue": "NO DATA",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "Services up",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 16,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up{job=~\"node-exporter|kafka|connect|trino|polaris|lms-postgres|lms\"} or probe_success{job=\"minio\"}",
+          "legendFormat": "{{job}}"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "fixed",
-            "fixedColor": "green"
+            "mode": "thresholds"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "min": 0,
+          "max": 1,
+          "unit": "bool",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
           }
         },
         "overrides": []
       },
       "options": {
-        "nodes": {
-          "mainStatUnit": "none",
-          "secondaryStatUnit": "none",
-          "arcs": [],
-          "mainStat": "pipeline_stage_health",
-          "secondaryStat": "pipeline_stage_health"
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
         },
-        "edges": {
-          "mainStatUnit": "none",
-          "secondaryStatUnit": "none"
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
         }
-      },
-      "transformations": []
+      }
     },
     {
-      "id": 2,
+      "id": 11,
       "type": "timeseries",
       "title": "Pipeline lag (consumer group lag)",
       "datasource": {
@@ -87,10 +928,10 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 12
+        "h": 9,
+        "w": 16,
+        "x": 8,
+        "y": 9
       },
       "targets": [
         {
@@ -132,113 +973,7 @@
       }
     },
     {
-      "id": 3,
-      "type": "timeseries",
-      "title": "Kafka Connect connector status",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 12
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "count by (connector, status) (kafka_connect_connector_status)",
-          "legendFormat": "{{connector}} = {{status}}"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 1,
-            "fillOpacity": 10,
-            "pointSize": 5,
-            "showPoints": "never",
-            "spanNulls": true
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 4,
-      "type": "timeseries",
-      "title": "Quarantine row count",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 0,
-        "y": 20
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "quarantine_rows_total",
-          "legendFormat": "quarantined rows"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "drawStyle": "bars",
-            "lineWidth": 1,
-            "fillOpacity": 60,
-            "pointSize": 5,
-            "showPoints": "never",
-            "spanNulls": true
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      }
-    },
-    {
-      "id": 5,
+      "id": 13,
       "type": "timeseries",
       "title": "dbt test results",
       "datasource": {
@@ -246,10 +981,10 @@
         "uid": "prometheus"
       },
       "gridPos": {
-        "h": 8,
+        "h": 9,
         "w": 8,
         "x": 8,
-        "y": 20
+        "y": 18
       },
       "targets": [
         {
@@ -312,55 +1047,40 @@
       }
     },
     {
-      "id": 6,
+      "id": 12,
       "type": "timeseries",
-      "title": "Services up",
+      "title": "Quarantine row count",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
       "gridPos": {
-        "h": 8,
+        "h": 9,
         "w": 8,
         "x": 16,
-        "y": 20
+        "y": 18
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "up{job=~\"node-exporter|kafka|connect|trino|polaris|lms-postgres|lms\"} or probe_success{job=\"minio\"}",
-          "legendFormat": "{{job}}"
+          "expr": "quarantine_rows_total",
+          "legendFormat": "quarantined rows"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "thresholds"
+            "mode": "palette-classic"
           },
           "custom": {
-            "drawStyle": "line",
+            "drawStyle": "bars",
             "lineWidth": 1,
-            "fillOpacity": 10,
+            "fillOpacity": 60,
             "pointSize": 5,
             "showPoints": "never",
             "spanNulls": true
           },
-          "min": 0,
-          "max": 1,
-          "unit": "bool",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "green",
-                "value": 1
-              }
-            ]
-          }
+          "unit": "short"
         },
         "overrides": []
       },
@@ -374,8 +1094,8 @@
           "showLegend": true
         },
         "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
+          "mode": "single",
+          "sort": "none"
         }
       }
     }
@@ -399,6 +1119,7 @@
   "timezone": "browser",
   "title": "LMS Pipeline Health",
   "uid": "lms-pipeline-health",
-  "version": 1,
-  "weekStart": ""
+  "version": 2,
+  "weekStart": "",
+  "description": "Pipeline topology as UP/DOWN status dots (green = up, red = down; never a raw 1/0), plus Kafka Connect health, consumer lag, dbt and quarantine signals."
 }
