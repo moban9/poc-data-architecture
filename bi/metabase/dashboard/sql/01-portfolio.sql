@@ -1,6 +1,6 @@
 -- =============================================================================
 -- Card pack 01 — PORTFOLIO HEALTH
--- Dashboard: LMS POC — Business Performance (Gold)   ·   Owner: Prism (BI)
+-- Dashboard: LMS POC — Business Performance   ·   Owner: Prism (BI)
 -- Source of truth: lakehouse.gold.loan_portfolio_summary
 --                   (dbt models/gold/loan_portfolio_summary.sql)
 --

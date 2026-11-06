@@ -17,14 +17,14 @@ LMS Postgres ──Debezium CDC──▶ Kafka ──iceberg-sink──▶ MinIO
 | Bronze (Iceberg) | raw CDC copies | Trino `lakehouse.bronze.*` |
 | Silver | dbt-clean + quarantine | Trino `lakehouse.silver.*` |
 | Gold | portfolio / NPL / snapshot | Trino `lakehouse.gold.*` |
-| Metabase | 37 business + DQ cards | https://bi.onendo.cloud |
+| Metabase | 2 dashboards — 29 business + 8 DQ cards | https://bi.onendo.cloud |
 | Grafana | topology + connector status | https://grafana.onendo.cloud |
 | Plane | incident tickets | https://plane.onendo.cloud/poc/ |
 
 ## URLs & credentials
 
 - **Demo panel:** https://demo.onendo.cloud (run scenarios here)
-- **BI:** https://bi.onendo.cloud/dashboard/3 · login `randy.joeandy@gmail.com` / `metabase89`
+- **BI:** https://bi.onendo.cloud/dashboard/3 (business) · https://bi.onendo.cloud/dashboard/<DQ id> (data quality — id printed by `provision_metabase.py`) · login `randy.joeandy@gmail.com` / `metabase89`
 - **Grafana:** https://grafana.onendo.cloud · `admin` / (see `compose/.env`)
 - **Plane:** https://plane.onendo.cloud/god-mode/ · `randy@onendo.cloud` / `Poc-cefc14ab8e1bf58609f9e0ee-Aa1!`
 - **Trino:** `trino:8080` (no auth, any `X-Trino-User`)

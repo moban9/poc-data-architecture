@@ -16,9 +16,11 @@ Why they were retired: both assumed buckets `90-179` and `charge-off`, which
 
 ## Where to go now
 
-* **Build / refresh the dashboard:** `cd dashboard && python3 provision_metabase.py --database-name 'Lakehouse (Trino)'`
-  — see `dashboard/README.md` §3. The connection display name is `Lakehouse (Trino)`
-  (Metabase db id=2; engine `starburst` / `io.trino.jdbc`, host `trino:8080`, no password).
+* **Build / refresh both dashboards:** `cd dashboard && python3 provision_metabase.py --database-name 'Lakehouse (Trino)'`
+  — see `dashboard/README.md` §3. One run publishes `LMS POC — Business Performance`
+  (cards 01–03) and `LMS POC — Data Quality` (card pack 04). The connection display name is
+  `Lakehouse (Trino)` (Metabase db id=2; engine `starburst` / `io.trino.jdbc`, host
+  `trino:8080`, no password).
 * **Definitions:** `dashboard/metric_definitions.md` (one line per tile, plus the
   per-currency money rules).
 * **NPL trend:** card *NPL · NPL rate trend (snapshot dates)* over

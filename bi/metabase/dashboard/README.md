@@ -1,32 +1,45 @@
-# Business dashboard — LMS POC gold layer
+# LMS POC dashboards — gold layer (business + data quality)
 
-**Question this dashboard answers, at a glance:**
-*"Is the loan book healthy — how much is outstanding, how much is going bad, is that
-getting better or worse, are we collecting, and how much bad data is being kept out
-of these numbers?"*
+**Two dashboards, one question each.**
 
-**Audience:** Randy (POC demo / exec read) · Atlas (data-lead review) · Keystone (pipeline).
+`LMS POC — Business Performance` — *"Is the loan book healthy — how much is outstanding,
+how much is going bad, is that getting better or worse, and are we collecting?"*
+29 cards: portfolio (P1–P10), NPL (N1–N9), payments (Y1–Y10).
 
-**Status:** **live** — dashboard id **3**, `LMS POC — Business Performance (Gold)`, at
-<https://bi.onendo.cloud/dashboard/3>. 37 cards across 4 panel groups, every card a
-native Trino query against the gold/silver layer. Last full verification:
-`provision_metabase.py` exit 0, *"all cards returned real, non-empty data"*.
-This revision re-points three panels at the extended gold contract (NPL snapshot history,
-`currency` in the portfolio grain, and `currency` through the payments pack) — re-run §3
-to publish it.
+`LMS POC — Data Quality` — *"What is the pipeline rejecting, how much of it, and by which
+rule?"* 8 cards: quarantine (D1–D8).
+
+**Why two:** quarantine counts are pipeline diagnostics, not business performance. Side by
+side with the portfolio tiles they invited the reading *"N bad rows = N bad loans"*, and
+they pushed the business headline tiles down the page. Randy asked for the separation, so
+each board now serves exactly one audience and one question.
+
+**Audience:** business board — Randy (POC demo / exec read) · Atlas (data-lead review).
+DQ board — Keystone (pipeline owner) · Atlas (data-lead review) · Randy (ad hoc).
+
+**Status:** **live** — business board is dashboard id **3**; the split renamed it in place
+from `LMS POC — Business Performance (Gold)` to `LMS POC — Business Performance`, so
+<https://bi.onendo.cloud/dashboard/3> still resolves. The DQ board is created by the same
+run (new id, printed as `[done] LMS POC — Data Quality: …/dashboard/<id>`).
+Every card is a native Trino query against the gold/silver layer.
 
 ---
 
 ## 1. What is in here
 
-| File | Purpose |
-|---|---|
-| `sql/01-portfolio.sql` | 10 cards — portfolio health (`gold.loan_portfolio_summary`, per currency) |
-| `sql/02-npl.sql` | 9 cards — NPL / delinquency, incl. the real snapshot trend (`gold.loan_delinquency`, `gold.loan_delinquency_snapshot`) |
-| `sql/03-payments.sql` | 10 cards — payments & collections, money tiles sliced by `currency` (`gold.loan_event_daily`, `silver.repayment_schedule`) |
-| `sql/04-data-quality.sql` | 8 cards — quarantine (`quarantine_lms.quarantine_lms`) |
-| `metric_definitions.md` | One definition line per tile + the money-unit rules |
-| `provision_metabase.py` | Creates/updates every card + the dashboard layout, then verifies row counts |
+| File | Dashboard | Purpose |
+|---|---|---|
+| `sql/01-portfolio.sql` | Business Performance | 10 cards — portfolio health (`gold.loan_portfolio_summary`, per currency) |
+| `sql/02-npl.sql` | Business Performance | 9 cards — NPL / delinquency, incl. the real snapshot trend (`gold.loan_delinquency`, `gold.loan_delinquency_snapshot`) |
+| `sql/03-payments.sql` | Business Performance | 10 cards — payments & collections, money tiles sliced by `currency` (`gold.loan_event_daily`, `silver.repayment_schedule`) |
+| `sql/04-data-quality.sql` | **Data Quality** | 8 cards — quarantine (`quarantine_lms.quarantine_lms`) |
+| `metric_definitions.md` | both | One definition line per tile + the money-unit rules |
+| `provision_metabase.py` | both | Creates/updates every card, builds **two** dashboard layouts, prunes tiles that do not belong, then verifies row counts |
+
+The dashboard each file belongs to is declared in `DASHBOARD_PACKS` at the top of
+`provision_metabase.py` (`files` are file-stem prefixes). Moving a pack to another board is
+a one-line edit there — or a `--dashboard-map '04-data-quality=…'` flag at run time; no SQL
+changes.
 
 Each card carries its own header line with display type, grid size and axis mapping:
 
@@ -71,35 +84,59 @@ NPL balances (N3, N5, N8) stay nominal/unsliced because the snapshot grain has n
 currency column; the `npl_rate` ratio is dimensionless and unaffected. Full rules:
 `metric_definitions.md` § *Money units*.
 
-## 3. Provision it (one command)
+## 3. Provision both dashboards (one command)
 
 ```bash
 cd bi/metabase/dashboard
 export METABASE_USER='<admin email>'
 export METABASE_PASSWORD='<admin password>'      # never commit this
 
-python3 provision_metabase.py --database-name 'Lakehouse (Trino)' --dry-run   # 1. plan only
-python3 provision_metabase.py --database-name 'Lakehouse (Trino)'             # 2. create + verify
+python3 provision_metabase.py --base-url https://bi.onendo.cloud \
+    --database-name 'Lakehouse (Trino)' --dry-run        # 1. plan only (both boards)
+python3 provision_metabase.py --base-url https://bi.onendo.cloud \
+    --database-name 'Lakehouse (Trino)' --create-db      # 2. create + verify
 ```
 
 * **The connection is named `Lakehouse (Trino)`** (Metabase db id=2), not `Lakehouse` —
   pass `--database-name` or the run stops at `[db] no Metabase database named …`.
+  `--create-db` is a no-op when it already exists (kept so the command works on a fresh stack).
+* One run builds **both** dashboards: cards are created/updated once, then each board gets
+  its own layout. Nothing is provisioned twice.
 * Python 3 stdlib only — no pip install, no jq.
-* Idempotent: cards are matched by exact name and updated in place; the dashboard layout
-  is re-applied wholesale. Re-running never duplicates anything.
+* Idempotent: cards are matched by exact name and updated in place; each dashboard layout is
+  re-applied wholesale. Re-running never duplicates a card or a dashboard.
+* **Tiles are pruned, cards never are.** After applying a layout the script reads the
+  dashboard back and deletes any dashcard that is not in that board's card set — that is
+  what removes the 8 DQ tiles from the business board on the first split run — then fails
+  loudly if the board's tile set is not exactly the pack's card set (`layout mismatch`).
 * It does **not** create the Trino connection unless you pass `--create-db`.
 * It never deletes a card or a dashboard.
 * Trailing `;` is stripped per card — Trino's JDBC path rejects it.
 
-Expected output tail:
+Expected output (verify section is last and is the acceptance check):
 
 ```
-[verify] all 37 cards returned real, non-empty data
-[done] dashboard: https://bi.onendo.cloud/dashboard/3
+[done] LMS POC — Business Performance: https://bi.onendo.cloud/dashboard/3
+[done] LMS POC — Data Quality: https://bi.onendo.cloud/dashboard/<new id>
+
+[verify] running every card through Metabase (this is the acceptance check)
+
+  --- LMS POC — Business Performance (https://bi.onendo.cloud/dashboard/3) ---
+   rows  status   card
+  ...29 PASS rows...
+  -> LMS POC — Business Performance: 29 cards, PASS
+
+  --- LMS POC — Data Quality (https://bi.onendo.cloud/dashboard/<new id>) ---
+  ...8 PASS rows...
+  -> LMS POC — Data Quality: 8 cards, PASS
+
+[verify] LMS POC — Business Performance: all 29 cards returned real, non-empty data
+[verify] LMS POC — Data Quality: all 8 cards returned real, non-empty data
+[verify] 2 dashboards, 37 cards total — all non-empty
 ```
 
-Exit codes: `0` all good · `1` provisioning/SQL error · `2` a card returned zero rows ·
-`3` dry run.
+Exit codes: `0` all good · `1` provisioning/SQL error or a board's tile set is wrong ·
+`2` a card returned zero rows · `3` dry run.
 
 ### Who runs it
 
@@ -112,34 +149,40 @@ shell. Everything the run needs is in this directory — no manual card building
 
 Metabase UI: New → Question → Native query → `Lakehouse (Trino)` → paste a card body
 from `sql/*.sql` → set Display per the header → Save → add to dashboard
-`LMS POC — Business Performance (Gold)`. The header's `fmt:` values map to Metabase
-column formatting (currency/percent). Card names must match the header exactly, or the
-next provisioner run creates a second card instead of updating this one.
+`LMS POC — Business Performance` (01–03) or `LMS POC — Data Quality` (04). The header's
+`fmt:` values map to Metabase column formatting (currency/percent). Card names must match
+the header exactly, or the next provisioner run creates a second card instead of updating
+this one.
 
 ## 4. The acceptance check is executable
 
 `provision_metabase.py` runs every card through `POST /api/card/{id}/query` and prints a
-row count per card, flagging `EMPTY` and `ERR`. "All panels returning non-empty real
-data" is therefore a test result, not a claim. Re-run after any `dbt run`:
+row count per card **per dashboard**, flagging `EMPTY` and `ERR`, then asserts each board's
+tile set is exactly its pack's card set. "Both dashboards, all cards non-empty" is therefore
+a test result, not a claim. Re-run after any `dbt run`:
 
 ```bash
-python3 provision_metabase.py --database-name 'Lakehouse (Trino)' && echo "dashboard still healthy"
+python3 provision_metabase.py --base-url https://bi.onendo.cloud \
+    --database-name 'Lakehouse (Trino)' && echo "both dashboards still healthy"
 ```
 
 ## 5. Why Prism's worker cannot publish, and what that means for review
 
 The `prism` kanban worker runs with a restricted toolset: file read/write, `web_search`,
-kanban tools — **no shell, no code execution, no HTTP client**. Verified again on this
-task:
+kanban tools — **no shell, no code execution, no HTTP client**. Verified again on the
+split task (t_ee595fe5):
 
-* `execute_code` → blocked by policy (`approvals.single_query_mode` denies unattended runs).
+* `execute_code` → `BLOCKED: execute_code runs arbitrary local Python … single-query mode
+  runs without a user present to approve it`. So the static check for this change is the
+  write-time syntax check (`python` lint, status ok) plus a line-by-line review of the
+  parse → group → layout → prune → verify path against the 37 real card headers.
 * no `terminal` tool in the kanban platform toolset.
 * `web_extract` backend is `ddgs` (search-only) → cannot fetch or POST.
 * the Metabase admin credential is not in the repo (created in the UI, per `docs/04-metabase.md` §3).
 
 So the split is: **Prism authors + reviews the pack and its numbers; the operator runs
 §3 and pastes the verify table back on the card.** A Prism card is only "done" when that
-verify output shows every card PASS.
+verify output shows both dashboards with every card PASS.
 
 ## 6. Known gaps — flagged, not papered over
 
@@ -153,7 +196,8 @@ verify output shows every card PASS.
 | **No `charge-off` / write-off concept in the source.** | Buckets stop at `90+`; there is no NPL→loss transition, so no charge-off panel. Adding a bucket before the source emits write-off events would be fabrication. | Keystone (source model) — **out of scope until `src/lms` grows the event** |
 | **Orphan cards in the Metabase collection.** Four cards created by earlier revisions are no longer on the dashboard: *"Portfolio · Outstanding balance"* and *"Portfolio · Principal originated"* (the old mixed-currency scalars, replaced by their per-currency versions), *"NPL · Overdue instalments by due month (proxy trend)"* (superseded by N7 + payments Y6) and *"Payments · Paid vs overdue by due month"* (replaced by *"Paid vs overdue by currency"* — a month × currency bar would need 12 series; month detail is Y6). | Cosmetic clutter in the collection only; nothing on the dashboard reads them. Archiving/deleting needs Randy's approval (Prism never deletes reports). | Randy — approve archive |
 | **`90+` bucket may read 0** on a load where nothing is 90+ DPD. | N1/N2/N3 then read 0 — real, not broken. Populate with `POST /scenarios/loan-book` on the LMS, then `dbt run`. | Randy/Atlas (data injection is their call) |
-| **Quarantine panel is empty on a perfectly clean run** by design. | D5–D8 can return zero rows after a clean load. The provisioner would flag it; that is expected behaviour, not a regression. | — (working as intended) |
+| **Dashboard split (t_ee595fe5).** Business board renamed in place from `… (Gold)` to `LMS POC — Business Performance` (id **3** kept, URL unchanged); DQ board `LMS POC — Data Quality` created by the first split run. | The 8 DQ tiles are removed from the business board by the provisioner's dashcard prune, and the business board now carries 29 tiles, the DQ board 8. Both sets are asserted, not assumed. | Prism — code change done; operator run of §3 pending |
+| **Quarantine panel is empty on a perfectly clean run** by design. | On the DQ board, D5–D8 can return zero rows after a clean load. The provisioner flags it and exits 2, so a clean load blocks the DQ publish — expected behaviour, not a regression. Re-run after a scenario load that trips at least one rule, or accept the flag explicitly with `--allow-empty`. | — (working as intended) |
 
 **Superseded files:** `bi/metabase/delinquency_buckets.sql` and
 `bi/metabase/npl_rate_kpi.sql` expected buckets `90-179`/`charge-off` that the mart has

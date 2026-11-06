@@ -1,6 +1,6 @@
 -- =============================================================================
 -- Card pack 03 — PAYMENTS / COLLECTIONS
--- Dashboard: LMS POC — Business Performance (Gold)   ·   Owner: Prism (BI)
+-- Dashboard: LMS POC — Business Performance   ·   Owner: Prism (BI)
 -- Sources:
 --   lakehouse.gold.loan_event_daily          — cash actually moved (dbt models/gold/loan_event_daily.sql)
 --   lakehouse.silver.repayment_schedule      — contractual instalments & their status

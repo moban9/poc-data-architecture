@@ -1,13 +1,18 @@
 -- =============================================================================
 -- Card pack 04 — DATA QUALITY (quarantine)
--- Dashboard: LMS POC — Business Performance (Gold)   ·   Owner: Prism (BI)
+-- Dashboard: LMS POC — Data Quality   ·   Owner: Prism (BI)
 -- Source of truth: lakehouse.quarantine_lms.quarantine_lms
 --                   (dbt models/quarantine.sql, 11-column append-only DQ log;
 --                    filled by models/silver/quarantine/* + macros/quarantine_failed_tests.sql)
 --
 -- WHY THIS PANEL EXISTS: bad rows never reach a KPI — they land here. A rising
--- count is the visible cost of dirty source data, so it belongs next to the
--- portfolio numbers, not in a separate ops tool.
+-- count is the visible cost of dirty source data.
+--
+-- WHY IT IS A SEPARATE DASHBOARD (not a panel on the business board): quarantine
+-- counts are pipeline diagnostics, not business performance. Sitting next to the
+-- portfolio numbers they invited the reading "N bad rows = N bad loans", and they
+-- pushed the business headline tiles down the page. Randy asked for the split;
+-- the business board is now business-only, this board is the DQ/ops read.
 --
 -- GRAIN: append-only, one row per offending source row per dbt run. Counts are
 -- therefore "quarantined row-events", not current bad-row inventory. The two

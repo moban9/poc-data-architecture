@@ -1,11 +1,14 @@
-# Metric definitions — LMS POC business dashboard
+# Metric definitions — LMS POC dashboards
 
 One line per tile. If a number on the dashboard is questioned, this file answers it
 without opening dbt. Every metric below is computed by a real query in `sql/*.sql`
 against the gold/silver layer — nothing is typed in by hand.
 
-**Dashboard:** `LMS POC — Business Performance (Gold)` · **Owner:** Prism (BI) ·
-**Audience:** Randy (POC demo / exec read) · Atlas (data-lead review) · Keystone (pipeline owner)
+**Dashboards (two since the split):** `LMS POC — Business Performance` (P*, N*, Y* cards)
+and `LMS POC — Data Quality` (D* cards) · **Owner:** Prism (BI) ·
+**Audience:** Randy (POC demo / exec read) · Atlas (data-lead review) · Keystone (pipeline owner).
+Business tiles and DQ tiles are deliberately on separate boards: a quarantine count is a
+pipeline diagnostic, not a business KPI, and the two are never added together.
 
 **As-of:** all gold marts are point-in-time builds. "Now" for the dataset is
 `MAX(silver.loan_event.occurred_at)`, shown on the dashboard as **Data as of**.

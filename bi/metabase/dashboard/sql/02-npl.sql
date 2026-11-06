@@ -1,6 +1,6 @@
 -- =============================================================================
 -- Card pack 02 — NPL / DELINQUENCY
--- Dashboard: LMS POC — Business Performance (Gold)   ·   Owner: Prism (BI)
+-- Dashboard: LMS POC — Business Performance   ·   Owner: Prism (BI)
 -- Sources:
 --   lakehouse.gold.loan_delinquency           — point-in-time mart (current snapshot)
 --                                               (dbt models/gold/loan_delinquency.sql)
