@@ -35,7 +35,7 @@ seeds:
       - name: currency
         tests:
           - accepted_values:
-              values: ["USD", "EUR", "GBP", "JPY", "CAD", "AUD"]
+              values: ["IDR"]
               quote: true
       - name: origination_date
         tests:

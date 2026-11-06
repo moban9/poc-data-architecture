@@ -30,7 +30,7 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: ["USD", "EUR", "GBP", "JPY", "CAD", "AUD"]
+              values: ["IDR"]
               quote: true
       - name: origination_date
         description: "Date the loan was originated (YYYY-MM-DD)."
@@ -131,7 +131,7 @@ models:
           - not_null
           - accepted_values:
               arguments:
-                values: ["USD", "EUR", "GBP", "JPY", "CAD", "AUD"]
+                values: ["IDR"]
                 quote: true
       - name: installment_no
         description: "1-based instalment number within the loan's schedule."
@@ -177,7 +177,7 @@ models:
           - not_null
           - accepted_values:
               arguments:
-                values: ["USD", "EUR", "GBP", "JPY", "CAD", "AUD"]
+                values: ["IDR"]
                 quote: true
       - name: loan_count
         description: "Number of clean loans in the group."
@@ -238,7 +238,7 @@ models:
           - not_null
           - accepted_values:
               arguments:
-                values: ["USD", "EUR", "GBP", "JPY", "CAD", "AUD"]
+                values: ["IDR"]
                 quote: true
       - name: total_events
         description: "Total events that day."

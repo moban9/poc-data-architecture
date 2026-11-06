@@ -31,12 +31,11 @@
 --   buckets = current (<30) / 30-59 / 60-89 / 90+ (>=90 = NPL).
 --   npl_rate = 90+ outstanding / total outstanding, carried on every bucket row.
 --
--- CURRENCY CAVEAT: `outstanding_balance` is a NOMINAL multi-currency sum (the
--- source writes USD/EUR/GBP/JPY/CAD/AUD with no FX conversion). The NPL *rate*
--- is a ratio of two mixed-currency totals (dimensionless and meaningful); the
--- *balance* is not. Do not treat a cross-currency outstanding total as a real
--- figure. (A currency dimension in this snapshot is a possible follow-up; it is
--- deliberately out of scope for t_51346c5a, whose grain is fixed by the BI ask.)
+-- CURRENCY CAVEAT: the POC book is single-currency (IDR), so `outstanding_balance`
+-- is a nominal IDR sum — no FX conversion is needed or performed. The NPL *rate*
+-- is a dimensionless ratio and unaffected. (A currency dimension in this snapshot
+-- is a possible follow-up; it is deliberately out of scope for t_51346c5a, whose
+-- grain is fixed by the BI ask.)
 
 with payments as (
     select

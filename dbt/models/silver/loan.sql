@@ -35,7 +35,7 @@ where
     and amount > 0
     -- not_null(currency) + accepted_values(currency)
     and currency is not null
-    and currency in ('USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD')
+    and currency in ('IDR')
     -- not_null(origination_date) + valid_date(origination_date)
     and origination_date is not null
     and regexp_like(cast(origination_date as varchar), '^\d{4}-\d{2}-\d{2}$')
