@@ -169,6 +169,43 @@ first start: bootstrap it with
 The rows already duplicated in bronze are not repaired by this — that is the
 bronze reconcile (rename-based dedupe, kanban `t_43530a0f`).
 
+## Failure mode 6 — sink writes parquet but "Nothing to commit" after Kafka recreation
+
+Symptom: after the Kafka cluster is recreated (fresh VM / deleted `connect`
+volumes), the sink consumes everything (consumer lag 0), writes Parquet data
+files to the object store, but `bronze.*` stays empty. The Connect log shows
+`Nothing to commit to table bronze.<t>, skipping` on every data cycle while
+`committed to N table(s)` still prints, and no new Iceberg snapshots appear.
+
+Cause: apache/iceberg #15293 (iceberg-kafka-connect 1.9.2). The sink's
+committed data-topic offset is persisted in the Iceberg snapshot summary under
+the key `kafka.connect.offsets.<control-topic>.<group>` (e.g.
+`kafka.connect.offsets.control-iceberg.connect-iceberg-sink={"0":51767}`). When
+Kafka is recreated the topics reset to offset 0, but that stale committed offset
+still outranks every new record, so the coordinator dedupes them all. It is NOT
+a table property (Trino `$properties` won't show it) and TRUNCATE/DROP does not
+clear it (Polaris cannot DROP tables, and TRUNCATE keeps the snapshot history).
+
+Fix / prevention: change `iceberg.control.topic` to a fresh name. The committed
+offset key embeds the control-topic name, so a new name makes the coordinator
+start with no committed offset and commit everything again.
+
+```bash
+# 1. stop the sink and give the control topic a new identity
+curl -s -X DELETE localhost:8083/connectors/iceberg-sink
+sed -i 's/"iceberg.control.topic": "[^"]*"/"iceberg.control.topic": "control-iceberg-v<N>"/' \
+  compose/connectors/iceberg-sink.json
+# 2. drop the stale control topic + consumer groups
+docker exec -e JAVA_TOOL_OPTIONS= lms-monitoring-kafka-1 /opt/kafka/bin/kafka-topics.sh \
+  --bootstrap-server kafka:9092 --delete --topic control-iceberg
+# 3. re-register
+bash compose/connectors/register-connectors.sh iceberg-sink
+```
+
+The proper long-term fix is an iceberg-kafka-connect upgrade that includes the
+#15293 recovery (detect a reset control topic and self-heal). Bump the version
+in `scripts/fetch-iceberg-jars.sh` rather than re-applying the rename.
+
 ## Known debris (do not copy)
 
 * `bronze/borrower-<uuid>/…` objects in the `lakehouse` bucket are leftovers from a
